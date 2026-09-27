@@ -3,12 +3,20 @@ import { createPlanStore, type Plan } from './planStore'
 
 const viewport = { width: 1000, height: 800 }
 
-const plan = (name: string, width = 2000, height = 1000): Plan => ({
-  name,
-  image: {} as CanvasImageSource,
-  width,
-  height,
-})
+const closedImages = new WeakSet<object>()
+
+const plan = (name: string, width = 2000, height = 1000): Plan => {
+  const image = {
+    width,
+    height,
+    close() {
+      closedImages.add(image)
+    },
+  } as ImageBitmap
+  return { name, image, width, height }
+}
+
+const closed = (p: Plan) => closedImages.has(p.image)
 
 describe('plan store', () => {
   it('shows an offered plan straight away when none is loaded, fitted to the viewport', () => {
@@ -54,5 +62,22 @@ describe('plan store', () => {
     expect(store.getState().plan?.name).toBe('old.png')
     expect(store.getState().pendingPlan).toBeNull()
     expect(store.getState().view).toEqual({ scale: 0.5, x: 0, y: 150 })
+  })
+
+  it('releases the image of whichever plan is discarded', () => {
+    const store = createPlanStore()
+    const first = plan('first.png')
+    const second = plan('second.png')
+    const third = plan('third.png')
+    store.getState().offerPlan(first, viewport)
+
+    store.getState().offerPlan(second, viewport)
+    store.getState().cancelReplace()
+    expect(closed(second)).toBe(true)
+
+    store.getState().offerPlan(third, viewport)
+    store.getState().confirmReplace(viewport)
+    expect(closed(first)).toBe(true)
+    expect(closed(third)).toBe(false)
   })
 })

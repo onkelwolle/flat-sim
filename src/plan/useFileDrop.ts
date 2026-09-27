@@ -4,15 +4,20 @@ const carriesFiles = (e: DragEvent) =>
   e.dataTransfer?.types.includes('Files') ?? false
 
 /**
- * Accept files dropped anywhere on the page. Returns whether files are
- * currently being dragged over it.
+ * Accept files dropped anywhere on the page while `enabled`. Returns whether
+ * files are currently being dragged over it.
  */
-export function useFileDrop(onDrop: (file: File) => void): boolean {
+export function useFileDrop(
+  onDrop: (file: File) => void,
+  enabled = true,
+): boolean {
   const [dragging, setDragging] = useState(false)
   const onDropRef = useRef(onDrop)
+  const enabledRef = useRef(enabled)
 
   useEffect(() => {
     onDropRef.current = onDrop
+    enabledRef.current = enabled
   })
 
   useEffect(() => {
@@ -31,8 +36,9 @@ export function useFileDrop(onDrop: (file: File) => void): boolean {
     }
     const onDragOver = (e: DragEvent) => {
       if (!carriesFiles(e)) return
-      e.preventDefault() // allow dropping
-      if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy'
+      e.preventDefault() // allow dropping, or refuse without navigating away
+      if (e.dataTransfer)
+        e.dataTransfer.dropEffect = enabledRef.current ? 'copy' : 'none'
     }
     const onDropFile = (e: DragEvent) => {
       if (!carriesFiles(e)) return
@@ -40,7 +46,7 @@ export function useFileDrop(onDrop: (file: File) => void): boolean {
       depth = 0
       setDragging(false)
       const file = e.dataTransfer?.files[0]
-      if (file) onDropRef.current(file)
+      if (file && enabledRef.current) onDropRef.current(file)
     }
 
     window.addEventListener('dragenter', onDragEnter)
@@ -55,5 +61,5 @@ export function useFileDrop(onDrop: (file: File) => void): boolean {
     }
   }, [])
 
-  return dragging
+  return dragging && enabled
 }

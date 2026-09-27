@@ -10,6 +10,7 @@ const tallPlan = fixture('tall-plan.jpg')
 test.use({ viewport: { width: 1280, height: 720 } })
 
 type Rgba = [number, number, number, number]
+type Colour = 'red' | 'green' | 'blue' | 'none'
 
 /** Colour drawn by the bottom (plan) layer at a viewport point. */
 const planPixel = (page: Page, x: number, y: number) =>
@@ -25,7 +26,7 @@ const planPixel = (page: Page, x: number, y: number) =>
     [x, y],
   )
 
-const looksLike = (pixel: Rgba, colour: 'red' | 'green' | 'blue' | 'none') => {
+const looksLike = (pixel: Rgba, colour: Colour) => {
   const [r, g, b, a] = pixel
   if (colour === 'none') return a === 0
   const [cr, cg, cb] = {
@@ -45,13 +46,35 @@ const expectPlanColour = async (
   page: Page,
   x: number,
   y: number,
-  colour: 'red' | 'green' | 'blue' | 'none',
+  colour: Colour,
 ) =>
   expect
     .poll(async () => looksLike(await planPixel(page, x, y), colour), {
       message: `pixel at (${x}, ${y}) should be ${colour}`,
     })
     .toBe(true)
+
+/** Drag a file over the page and drop it; `whileDragging` runs mid-drag. */
+const dropFile = async (
+  page: Page,
+  file: URL,
+  type: string,
+  whileDragging = async () => {},
+) => {
+  const name = file.pathname.split('/').pop()!
+  const dataTransfer = await page.evaluateHandle(
+    ({ bytes, name, type }) => {
+      const dt = new DataTransfer()
+      dt.items.add(new File([new Uint8Array(bytes)], name, { type }))
+      return dt
+    },
+    { bytes: [...readFileSync(file)], name, type },
+  )
+  await page.dispatchEvent('body', 'dragenter', { dataTransfer })
+  await whileDragging()
+  await page.dispatchEvent('body', 'dragover', { dataTransfer })
+  await page.dispatchEvent('body', 'drop', { dataTransfer })
+}
 
 const pickFile = (page: Page, file: URL) =>
   page.locator('input[type=file]').setInputFiles(file.pathname)
@@ -87,21 +110,22 @@ test('opens a plan from the file picker, fitted to the viewport', async ({
 })
 
 test('opens a plan dropped onto the page', async ({ page }) => {
-  const bytes = [...readFileSync(widePlan)]
-  const dataTransfer = await page.evaluateHandle((bytes) => {
-    const dt = new DataTransfer()
-    dt.items.add(
-      new File([new Uint8Array(bytes)], 'wide-plan.png', { type: 'image/png' }),
-    )
-    return dt
-  }, bytes)
-
-  await page.dispatchEvent('body', 'dragenter', { dataTransfer })
-  await expect(page.getByText('Drop to open the plan')).toBeVisible()
-  await page.dispatchEvent('body', 'dragover', { dataTransfer })
-  await page.dispatchEvent('body', 'drop', { dataTransfer })
+  await dropFile(page, widePlan, 'image/png', async () => {
+    await expect(page.getByText('Drop to open the plan')).toBeVisible()
+  })
 
   await expect(page.getByText('Drop to open the plan')).toBeHidden()
+  await expectWidePlanFitted(page)
+})
+
+test('opens the file picker from the keyboard', async ({ page }) => {
+  await page.keyboard.press('Tab')
+  await expect(page.getByRole('button', { name: 'Open plan…' })).toBeFocused()
+
+  const chooser = page.waitForEvent('filechooser')
+  await page.keyboard.press('Enter')
+  await (await chooser).setFiles(widePlan.pathname)
+
   await expectWidePlanFitted(page)
 })
 
@@ -122,6 +146,22 @@ test('asks in-page before replacing the plan', async ({ page }) => {
   await pickFile(page, tallPlan)
   await dialog.getByRole('button', { name: 'Replace' }).click()
   await expect(dialog).toBeHidden()
+  await expectTallPlanFitted(page)
+})
+
+test('ignores drops while the replace prompt is open', async ({ page }) => {
+  await pickFile(page, widePlan)
+  await expectWidePlanFitted(page)
+  await pickFile(page, tallPlan)
+  const dialog = page.getByRole('dialog', { name: 'Replace the current plan?' })
+  await expect(dialog).toContainText('tall-plan.jpg')
+
+  await dropFile(page, widePlan, 'image/png', async () => {
+    await expect(page.getByText('Drop to open the plan')).toBeHidden()
+  })
+
+  await expect(dialog).toContainText('tall-plan.jpg')
+  await dialog.getByRole('button', { name: 'Replace' }).click()
   await expectTallPlanFitted(page)
 })
 

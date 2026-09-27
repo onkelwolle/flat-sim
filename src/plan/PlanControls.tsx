@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { Size } from '../useViewportSize'
 import { loadPlanFile, PLAN_FILE_TYPES } from './loadPlanFile'
 import { planStore, usePlanStore } from './planStore'
@@ -9,34 +9,47 @@ export function PlanControls({ viewport }: { viewport: Size }) {
   const hasPlan = usePlanStore((s) => s.plan !== null)
   const pendingPlan = usePlanStore((s) => s.pendingPlan)
   const [error, setError] = useState<string | null>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
+  // Decoding is async; only the most recently chosen file may win
+  const latestLoad = useRef(0)
 
   const openFile = async (file: File) => {
+    const load = ++latestLoad.current
     setError(null)
     try {
-      planStore.getState().offerPlan(await loadPlanFile(file), viewport)
+      const plan = await loadPlanFile(file)
+      if (load !== latestLoad.current) return plan.image.close()
+      planStore.getState().offerPlan(plan, viewport)
     } catch (e) {
+      if (load !== latestLoad.current) return
       setError(e instanceof Error ? e.message : String(e))
     }
   }
 
-  const dragging = useFileDrop(openFile)
+  // No new plans while the replace prompt is open
+  const dragging = useFileDrop(openFile, !pendingPlan)
 
   return (
     <>
       <div className="toolbar">
-        <label className="button">
+        <button
+          type="button"
+          className="button"
+          onClick={() => inputRef.current?.click()}
+        >
           Open plan…
-          <input
-            type="file"
-            accept={PLAN_FILE_TYPES.join(',')}
-            hidden
-            onChange={(e) => {
-              const file = e.currentTarget.files?.[0]
-              e.currentTarget.value = '' // let the same file be picked again
-              if (file) void openFile(file)
-            }}
-          />
-        </label>
+        </button>
+        <input
+          ref={inputRef}
+          type="file"
+          accept={PLAN_FILE_TYPES.join(',')}
+          hidden
+          onChange={(e) => {
+            const file = e.currentTarget.files?.[0]
+            e.currentTarget.value = '' // let the same file be picked again
+            if (file) void openFile(file)
+          }}
+        />
         {error && (
           <p className="error" role="alert">
             {error}

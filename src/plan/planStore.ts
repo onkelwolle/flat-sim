@@ -6,7 +6,7 @@ import { fitToViewport, type View } from './fitToViewport'
 /** A decoded floor plan image; its pixels are the plan's coordinate space. */
 export type Plan = {
   name: string
-  image: CanvasImageSource
+  image: ImageBitmap
   width: number
   height: number
 }
@@ -29,18 +29,23 @@ export function createPlanStore() {
     plan: null,
     pendingPlan: null,
     view: { scale: 1, x: 0, y: 0 },
-    offerPlan: (plan, viewport) =>
-      set(
-        get().plan
-          ? { pendingPlan: plan }
-          : { plan, view: fitToViewport(plan, viewport) },
-      ),
-    confirmReplace: (viewport) => {
-      const plan = get().pendingPlan
-      if (plan)
-        set({ plan, pendingPlan: null, view: fitToViewport(plan, viewport) })
+    offerPlan: (plan, viewport) => {
+      const { plan: current, pendingPlan } = get()
+      if (!current) return set({ plan, view: fitToViewport(plan, viewport) })
+      pendingPlan?.image.close()
+      set({ pendingPlan: plan })
     },
-    cancelReplace: () => set({ pendingPlan: null }),
+    confirmReplace: (viewport) => {
+      const { plan: old, pendingPlan: plan } = get()
+      if (!plan) return
+      set({ plan, pendingPlan: null, view: fitToViewport(plan, viewport) })
+      // Released after the swap so nothing renders a closed bitmap
+      old?.image.close()
+    },
+    cancelReplace: () => {
+      get().pendingPlan?.image.close()
+      set({ pendingPlan: null })
+    },
   }))
 }
 

@@ -97,6 +97,18 @@ body {
   margin-bottom: 0.75rem;
 }
 
+.furniture-fields {
+  display: grid;
+  grid-template-columns: 2fr 1fr 1fr;
+  gap: 8px;
+  margin-bottom: 0.75rem;
+}
+
+.furniture-fields .input {
+  width: 100%;
+  box-sizing: border-box;
+}
+
 .empty-hint {
   position: fixed;
   inset: 0;

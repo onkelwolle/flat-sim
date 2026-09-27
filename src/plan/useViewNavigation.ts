@@ -29,8 +29,11 @@ const wheelPixels = (e: WheelEvent, viewport: Size) =>
       ? viewport.height
       : 1)
 
-// Space over a control belongs to that control, not to panning
-const isControl = (target: EventTarget | null) =>
+/**
+ * Whether a key event's target is a form control: keys typed there (space,
+ * Delete) belong to that control, not to the canvas.
+ */
+export const isControl = (target: EventTarget | null) =>
   target instanceof HTMLElement &&
   (target.isContentEditable ||
     ['INPUT', 'TEXTAREA', 'SELECT', 'BUTTON'].includes(target.tagName))

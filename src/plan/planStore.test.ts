@@ -3,6 +3,7 @@ import {
   createPlanStore,
   MAX_ZOOM,
   MIN_ZOOM,
+  selectFurnitureSizePx,
   selectMeasuredLength,
   type Plan,
 } from './planStore'
@@ -387,5 +388,167 @@ describe('measuring with the tape', () => {
     store.getState().confirmReplace(viewport)
 
     expect(store.getState().tape).toBeNull()
+  })
+})
+
+describe('furniture', () => {
+  // A 2000×1000 plan fitted to 1000×800: scale 0.5 at y = 150, so the view's
+  // centre (500, 400) is plan (1000, 500). Calibrated at 50 px per metre.
+  const calibrated = () => {
+    const store = createPlanStore()
+    store.getState().offerPlan(plan('flat.png'), viewport)
+    store.getState().startCalibration()
+    store.getState().placeCalibrationPoint({ x: 100, y: 100 })
+    store.getState().placeCalibrationPoint({ x: 300, y: 100 })
+    store.getState().finishCalibration(400)
+    return store
+  }
+
+  type Store = ReturnType<typeof calibrated>
+
+  const sofa = { name: 'Sofa', widthCm: 200, depthCm: 90 }
+
+  it('adds an item centred in the view, sized in cm and unrotated', () => {
+    const store = calibrated()
+
+    store.getState().addFurniture(sofa, viewport)
+
+    expect(store.getState().furniture).toEqual([
+      {
+        id: expect.any(String),
+        name: 'Sofa',
+        widthCm: 200,
+        depthCm: 90,
+        position: { x: 1000, y: 500 },
+        rotationDeg: 0,
+      },
+    ])
+  })
+
+  const onlyItem = (store: Store) => store.getState().furniture[0]!
+
+  it('draws an item to scale, and re-calibrating keeps its real size', () => {
+    const store = calibrated()
+    store.getState().addFurniture(sofa, viewport)
+
+    // 200 × 90 cm at 50 px per metre
+    expect(selectFurnitureSizePx(store.getState(), onlyItem(store))).toEqual({
+      width: 100,
+      height: 45,
+    })
+
+    // Same line, now 2 m long: 100 px per metre
+    store.getState().startCalibration()
+    store.getState().placeCalibrationPoint({ x: 100, y: 100 })
+    store.getState().placeCalibrationPoint({ x: 300, y: 100 })
+    store.getState().finishCalibration(200)
+
+    expect(onlyItem(store)).toMatchObject({ widthCm: 200, depthCm: 90 })
+    expect(selectFurnitureSizePx(store.getState(), onlyItem(store))).toEqual({
+      width: 200,
+      height: 90,
+    })
+  })
+
+  it('cannot add furniture until the scale is set', () => {
+    const store = createPlanStore()
+    store.getState().offerPlan(plan('flat.png'), viewport)
+
+    store.getState().addFurniture(sofa, viewport)
+
+    expect(store.getState().furniture).toEqual([])
+  })
+
+  const ids = (store: Store) => store.getState().furniture.map((f) => f.id)
+
+  it('selects a newly added item', () => {
+    const store = calibrated()
+    store.getState().addFurniture(sofa, viewport)
+    store.getState().addFurniture({ ...sofa, name: 'Bed' }, viewport)
+
+    const [, bed] = ids(store)
+    expect(store.getState().selectedId).toBe(bed)
+  })
+
+  it('selects one item at a time, and clears the selection', () => {
+    const store = calibrated()
+    store.getState().addFurniture(sofa, viewport)
+    store.getState().addFurniture({ ...sofa, name: 'Bed' }, viewport)
+    const [sofaId] = ids(store)
+
+    store.getState().selectFurniture(sofaId!)
+    expect(store.getState().selectedId).toBe(sofaId)
+
+    store.getState().clearSelection()
+    expect(store.getState().selectedId).toBeNull()
+  })
+
+  it('ignores selecting an item that is not on the plan', () => {
+    const store = calibrated()
+
+    store.getState().selectFurniture('nope')
+
+    expect(store.getState().selectedId).toBeNull()
+  })
+
+  it('deletes the selected item, leaving nothing selected', () => {
+    const store = calibrated()
+    store.getState().addFurniture(sofa, viewport)
+    store.getState().addFurniture({ ...sofa, name: 'Bed' }, viewport)
+    const [sofaId, bedId] = ids(store)
+    store.getState().selectFurniture(sofaId!)
+
+    store.getState().deleteSelectedFurniture()
+
+    expect(ids(store)).toEqual([bedId])
+    expect(store.getState().selectedId).toBeNull()
+  })
+
+  it('deletes nothing while nothing is selected', () => {
+    const store = calibrated()
+    store.getState().addFurniture(sofa, viewport)
+    store.getState().clearSelection()
+
+    store.getState().deleteSelectedFurniture()
+
+    expect(store.getState().furniture).toHaveLength(1)
+  })
+
+  it('clears the selection when a tool starts', () => {
+    const store = calibrated()
+    store.getState().addFurniture(sofa, viewport)
+
+    store.getState().startMeasuring()
+    expect(store.getState().selectedId).toBeNull()
+
+    store.getState().selectFurniture(ids(store)[0]!)
+    store.getState().startCalibration()
+    expect(store.getState().selectedId).toBeNull()
+  })
+
+  it('leaves the active tool when an item is added or selected', () => {
+    const store = calibrated()
+    store.getState().startMeasuring()
+    store.getState().addFurniture(sofa, viewport)
+    expect(store.getState().tape).toBeNull()
+
+    store.getState().startCalibration()
+    store.getState().selectFurniture(ids(store)[0]!)
+    expect(store.getState().calibrationDraft).toBeNull()
+  })
+
+  it('drops all furniture when the plan is replaced, but not when replacing is cancelled', () => {
+    const store = calibrated()
+    store.getState().addFurniture(sofa, viewport)
+
+    store.getState().offerPlan(plan('other.png'), viewport)
+    store.getState().cancelReplace()
+    expect(store.getState().furniture).toHaveLength(1)
+    expect(store.getState().selectedId).not.toBeNull()
+
+    store.getState().offerPlan(plan('other.png'), viewport)
+    store.getState().confirmReplace(viewport)
+    expect(store.getState().furniture).toEqual([])
+    expect(store.getState().selectedId).toBeNull()
   })
 })

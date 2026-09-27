@@ -31,3 +31,13 @@ _Avoid_: ruler, measure tool
 
 **Measurement**:
 A straight line between two points on the **Plan**, in **Plan pixels**, shown with its real length (whole cm below a metre, else metres to two decimals). For now a measurement lasts only while the **Measuring tape** is active; leaving the tool drops it.
+
+**Item** (of furniture):
+A rectangle standing for a piece of furniture, with a name and a real width and depth in cm. Its size is kept in cm and drawn through the **Scale**, so re-calibrating redraws it at its correct real size; its centre is a point in **Plan pixels**, and it has a rotation in degrees. Items can be added only once the **Scale** is set; a new item appears centred in the **View**. Replacing the **Plan** drops all items.
+_Avoid_: object, shape, piece
+
+**Furniture**:
+All the **Items** placed on the **Plan**.
+
+**Selection**:
+The one **Item** currently being worked on, or none. Adding an item selects it; clicking an item selects it; clicking empty canvas (without panning) selects none. Delete removes the selected item. Selection and tools exclude each other: starting the **Calibrate tool** or **Measuring tape** clears the selection, and selecting an item leaves the active tool.

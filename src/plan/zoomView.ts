@@ -24,3 +24,9 @@ export function zoomView(
     y: at.y - (at.y - view.y) * ratio,
   }
 }
+
+/** The plan point shown at a screen point. */
+export const screenToPlan = (view: View, at: Point): Point => ({
+  x: (at.x - view.x) / view.scale,
+  y: (at.y - view.y) / view.scale,
+})

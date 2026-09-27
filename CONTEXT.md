@@ -33,7 +33,7 @@ _Avoid_: ruler, measure tool
 A straight line between two points on the **Plan**, in **Plan pixels**, shown with its real length (whole cm below a metre, else metres to two decimals). For now a measurement lasts only while the **Measuring tape** is active; leaving the tool drops it.
 
 **Item** (of furniture):
-A rectangle standing for a piece of furniture, with a name and a real width and depth in cm. Its size is kept in cm and drawn through the **Scale**, so re-calibrating redraws it at its correct real size; its centre is a point in **Plan pixels**, and it has a rotation in degrees. Items can be added only once the **Scale** is set; a new item appears centred in the **View**. Replacing the **Plan** drops all items.
+A rectangle standing for a piece of furniture, with a name and a real width and depth in cm. Its size is kept in cm and drawn through the **Scale**, so re-calibrating redraws it at its correct real size; its centre is a point in **Plan pixels**, and it has a clockwise rotation in degrees (0–360). Items can be added only once the **Scale** is set; a new item appears centred in the **View**. Dragging an item moves it (never the **View**); the selected item's rotate handle turns it in 15° steps, or freely with Shift held; arrow keys **nudge** the selected item 1 cm (10 cm with Shift). Its width and depth are edited in cm in the side panel, which shows while it is selected. Replacing the **Plan** drops all items.
 _Avoid_: object, shape, piece
 
 **Furniture**:

@@ -1,6 +1,6 @@
 import type { KonvaEventObject } from 'konva/lib/Node'
 import { useEffect, useRef } from 'react'
-import { distance } from './geometry'
+import { distance, type NudgeDirection } from './geometry'
 import { planStore } from './planStore'
 import { isControl } from './useViewNavigation'
 import type { Point } from './zoomView'
@@ -9,13 +9,25 @@ import type { Point } from './zoomView'
 // a click (which deselects) rather than a pan (which keeps the selection)
 const CLICK_TOLERANCE = 4
 
+// Real distance an arrow key nudges the selected item; Shift for the larger
+const NUDGE_CM = 1
+const LARGE_NUDGE_CM = 10
+
+const NUDGE_KEYS: Partial<Record<string, NudgeDirection>> = {
+  ArrowLeft: 'left',
+  ArrowRight: 'right',
+  ArrowUp: 'up',
+  ArrowDown: 'down',
+}
+
 type FurnitureSelectionHandlers = {
   onPointerDown: (e: KonvaEventObject<PointerEvent>) => void
   onPointerUp: (e: KonvaEventObject<PointerEvent>) => void
 }
 
 /**
- * Selection input for furniture: clicking empty canvas deselects, and Delete
+ * Selection input for furniture: clicking empty canvas deselects, arrow keys
+ * nudge the selected item (1 cm, or 10 cm with Shift), and Delete
  * (or Backspace) deletes the selected item unless the key is typed into a
  * control or a dialog is open. Items select themselves when pressed. Returns
  * handlers for the Stage.
@@ -26,13 +38,20 @@ export function useFurnitureSelection(): FurnitureSelectionHandlers {
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key !== 'Delete' && e.key !== 'Backspace') return
+      const deleting = e.key === 'Delete' || e.key === 'Backspace'
+      const direction = NUDGE_KEYS[e.key]
+      if (!deleting && !direction) return
       if (isControl(e.target)) return
       if (document.querySelector('[aria-modal="true"]')) return
       const store = planStore.getState()
       if (!store.selectedId) return
-      e.preventDefault()
-      store.deleteSelectedFurniture()
+      e.preventDefault() // no scrolling or going back
+      if (direction)
+        store.nudgeSelectedFurniture(
+          direction,
+          e.shiftKey ? LARGE_NUDGE_CM : NUDGE_CM,
+        )
+      else store.deleteSelectedFurniture()
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)

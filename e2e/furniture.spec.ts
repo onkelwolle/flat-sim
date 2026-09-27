@@ -1,6 +1,7 @@
 import { expect, test, type Page } from '@playwright/test'
 import {
   expectFurnitureAt,
+  expectPlanColour,
   expectWidePlanFitted,
   pickFile,
   widePlan,
@@ -191,5 +192,207 @@ test.describe('once calibrated', () => {
     await page.keyboard.press('Escape')
     await expect(status(page)).toHaveText('Scale: 1 m = 50 plan px')
     await expect(deleteButton(page)).toBeHidden()
+  })
+})
+
+test.describe('moving and rotating', () => {
+  test.beforeEach(async ({ page }) => {
+    // 50 plan px per metre; a 200 × 100 cm sofa is 320 × 160 screen px
+    // around (640, 360)
+    await calibrate(page, '4')
+    await addFurniture(page, 'Sofa', '200', '100')
+  })
+
+  test('dragging an item moves it, not the view', async ({ page }) => {
+    await page.mouse.click(200, 600)
+
+    await page.mouse.move(600, 380)
+    await page.mouse.down()
+    await page.mouse.move(700, 480, { steps: 5 })
+    await page.mouse.up()
+
+    // Moved 100 px right and down; the plan stayed where it was
+    await expectFurnitureAt(page, 585, 385)
+    await expectFurnitureAt(page, 895, 535)
+    await expectFurnitureAt(page, 575, 385, false)
+    await expectFurnitureAt(page, 905, 535, false)
+    await expectWidePlanFitted(page)
+    await expect(status(page)).toHaveText(/^Sofa selected\./)
+  })
+
+  test('dragging an item with space held pans the view instead', async ({
+    page,
+  }) => {
+    await page.keyboard.down('Space')
+    await page.mouse.move(600, 380)
+    await page.mouse.down()
+    await page.mouse.move(700, 480, { steps: 5 })
+    await page.mouse.up()
+    await page.keyboard.up('Space')
+
+    // The plan moved with the sofa: its red half now reaches x = 740
+    await expectPlanColour(page, 730, 450, 'red')
+    await expectFurnitureAt(page, 585, 385)
+    await expectFurnitureAt(page, 895, 535)
+    await expectFurnitureAt(page, 575, 385, false)
+  })
+
+  test('shows a move cursor over an item', async ({ page }) => {
+    const stage = page.locator('div:has(> .konvajs-content)')
+
+    await page.mouse.move(600, 380, { steps: 5 })
+    await expect(stage).toHaveCSS('cursor', 'move')
+
+    await page.mouse.move(200, 600)
+    await expect(stage).not.toHaveCSS('cursor', 'move')
+  })
+
+  // The rotate handle sits 50 px above the selected item's top edge
+  const rotateHandle = { x: 640, y: 230 }
+
+  /** Drag the rotate handle to `deg` clockwise from straight up. */
+  const dragHandleTo = async (page: Page, deg: number) => {
+    const rad = (deg * Math.PI) / 180
+    await page.mouse.move(rotateHandle.x, rotateHandle.y)
+    await page.mouse.down()
+    await page.mouse.move(
+      640 + 150 * Math.sin(rad),
+      360 - 150 * Math.cos(rad),
+      {
+        steps: 10,
+      },
+    )
+    await page.mouse.up()
+  }
+
+  // Turned a quarter, the sofa is 160 × 320 px: (718, 203) is just inside
+  // its top-right corner; at 85° that corner has swung away from it
+  const corner = { x: 718, y: 203 }
+
+  test('the rotate handle turns an item in 15° steps', async ({ page }) => {
+    await dragHandleTo(page, 85)
+
+    await expectFurnitureAt(page, corner.x, corner.y)
+    await expectFurnitureAt(page, 500, 360, false)
+  })
+
+  test('holding Shift rotates an item freely', async ({ page }) => {
+    await page.keyboard.down('Shift')
+    await dragHandleTo(page, 85)
+    await page.keyboard.up('Shift')
+
+    await expectFurnitureAt(page, corner.x, corner.y, false)
+    await expectFurnitureAt(page, 500, 360, false)
+  })
+
+  test('arrow keys nudge the selected item by 1 cm, with Shift by 10 cm', async ({
+    page,
+  }) => {
+    // 10 cm is 5 plan px, 16 screen px; 1 cm is 1.6 screen px
+    await page.keyboard.press('Shift+ArrowRight')
+    for (let i = 0; i < 10; i++) await page.keyboard.press('ArrowDown')
+
+    // The left edge moved from 480 to 496, the top from 280 to 296
+    await expectFurnitureAt(page, 490, 360, false)
+    await expectFurnitureAt(page, 500, 360)
+    await expectFurnitureAt(page, 600, 290, false)
+    await expectFurnitureAt(page, 600, 300)
+    await expectWidePlanFitted(page)
+  })
+
+  test('arrow keys typed into a field do not nudge the item', async ({
+    page,
+  }) => {
+    await addButton(page).click()
+    const name = formDialog(page).getByLabel('Name')
+    await name.fill('Desk')
+    await name.press('Shift+ArrowLeft')
+    await name.press('Shift+ArrowUp')
+    await formDialog(page).getByRole('button', { name: 'Cancel' }).click()
+
+    await expectFurnitureAt(page, 485, 285)
+  })
+})
+
+test.describe('the item panel', () => {
+  const panel = (page: Page) =>
+    page.getByRole('complementary', { name: 'Selected item' })
+
+  test.beforeEach(async ({ page }) => {
+    await calibrate(page, '4')
+    await addFurniture(page, 'Sofa', '200', '100')
+  })
+
+  test('shows the selected item, and hides with nothing selected', async ({
+    page,
+  }) => {
+    await expect(panel(page).getByRole('heading')).toHaveText('Sofa')
+    await expect(panel(page).getByLabel('Width (cm)')).toHaveValue('200')
+    await expect(panel(page).getByLabel('Depth (cm)')).toHaveValue('100')
+
+    await page.mouse.click(200, 600)
+    await expect(panel(page)).toBeHidden()
+  })
+
+  test('shows the rotation, in snapped steps', async ({ page }) => {
+    await expect(panel(page)).toContainText('Rotation 0°')
+
+    // Drag the handle, 50 px above the top edge, to about 40° clockwise
+    await page.mouse.move(640, 230)
+    await page.mouse.down()
+    await page.mouse.move(
+      640 + 150 * Math.sin(0.7),
+      360 - 150 * Math.cos(0.7),
+      {
+        steps: 10,
+      },
+    )
+    await page.mouse.up()
+
+    await expect(panel(page)).toContainText('Rotation 45°')
+  })
+
+  test('editing the width and depth resizes the item around its centre', async ({
+    page,
+  }) => {
+    const width = panel(page).getByLabel('Width (cm)')
+    await width.fill('300')
+    await width.press('Enter')
+    const depth = panel(page).getByLabel('Depth (cm)')
+    await depth.fill('50,5')
+    // Moving on to another field applies it too
+    await width.focus()
+
+    // 300 × 50.5 cm = 480 × 80.8 screen px around (640, 360)
+    await expectFurnitureAt(page, 405, 360)
+    await expectFurnitureAt(page, 395, 360, false)
+    await expectFurnitureAt(page, 600, 325)
+    await expectFurnitureAt(page, 600, 315, false)
+  })
+
+  test('rejects a size that is not greater than zero', async ({ page }) => {
+    const width = panel(page).getByLabel('Width (cm)')
+    await width.fill('0')
+    await width.press('Enter')
+
+    await expect(panel(page).getByRole('alert')).toHaveText(/greater than zero/)
+    await expect(width).toHaveAttribute('aria-invalid', 'true')
+    await expectFurnitureAt(page, 485, 285)
+
+    await width.fill('250')
+    await width.press('Enter')
+    await expect(panel(page).getByRole('alert')).toBeHidden()
+  })
+
+  test('keys typed into the panel do not nudge or delete the item', async ({
+    page,
+  }) => {
+    const width = panel(page).getByLabel('Width (cm)')
+    await width.press('Shift+ArrowLeft')
+    await width.press('ArrowUp')
+    await width.press('Backspace')
+
+    await expectFurnitureAt(page, 485, 285)
+    await expect(status(page)).toHaveText(/^Sofa selected\./)
   })
 })

@@ -2,7 +2,12 @@ import { useStore } from 'zustand'
 import { createStore } from 'zustand/vanilla'
 import type { Size } from '../useViewportSize'
 import { fitToViewport, type View } from './fitToViewport'
-import { distance } from './geometry'
+import {
+  distance,
+  nudgeOffset,
+  snapRotation,
+  type NudgeDirection,
+} from './geometry'
 import { cmToPx, pxToCm, scaleFromLine, type Scale } from './scale'
 import { screenToPlan, zoomView, type Point } from './zoomView'
 
@@ -116,6 +121,14 @@ export type PlanState = {
   clearSelection: () => void
   /** Remove the selected item from the plan. */
   deleteSelectedFurniture: () => void
+  /** Put an item's centre at a point, in plan pixels. */
+  moveFurniture: (id: string, position: Point) => void
+  /** Set an item's clockwise rotation, in degrees; kept within [0, 360). */
+  rotateFurniture: (id: string, deg: number) => void
+  /** Set an item's real size; ignored unless both are greater than zero. */
+  resizeFurniture: (id: string, widthCm: number, depthCm: number) => void
+  /** Move the selected item `cm` real centimetres in a screen direction. */
+  nudgeSelectedFurniture: (direction: NudgeDirection, cm: number) => void
 }
 
 /** State change that selects an item; one activity at a time, so tools end. */
@@ -274,8 +287,40 @@ export function createPlanStore() {
         selectedId: null,
       })
     },
+    moveFurniture: (id, position) =>
+      set({ furniture: updateItem(get().furniture, id, { position }) }),
+    rotateFurniture: (id, deg) =>
+      set({
+        furniture: updateItem(get().furniture, id, {
+          rotationDeg: snapRotation(deg, null),
+        }),
+      }),
+    resizeFurniture: (id, widthCm, depthCm) => {
+      if (!isPositive(widthCm) || !isPositive(depthCm)) return
+      set({ furniture: updateItem(get().furniture, id, { widthCm, depthCm }) })
+    },
+    nudgeSelectedFurniture: (direction, cm) => {
+      const { furniture, selectedId } = get()
+      const scale = selectScale(get())
+      const item = furniture.find((f) => f.id === selectedId)
+      if (!item || !scale) return
+      const offset = nudgeOffset(direction, cm, scale)
+      get().moveFurniture(item.id, {
+        x: item.position.x + offset.x,
+        y: item.position.y + offset.y,
+      })
+    },
   }))
 }
+
+const isPositive = (n: number) => n > 0 && isFinite(n)
+
+/** `furniture` with the item `id` changed; unchanged if there is none. */
+const updateItem = (
+  furniture: Furniture[],
+  id: string,
+  change: Partial<Furniture>,
+) => furniture.map((f) => (f.id === id ? { ...f, ...change } : f))
 
 export const planStore = createPlanStore()
 

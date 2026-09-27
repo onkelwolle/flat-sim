@@ -4,6 +4,7 @@ import {
   planStore,
   selectScale,
   usePlanStore,
+  type Furniture,
   type FurnitureSpec,
 } from './planStore'
 import { parseLength } from './scale'
@@ -80,6 +81,77 @@ export function FurnitureStatus() {
     </p>
   )
 }
+
+/**
+ * Side panel for the selected item: its name, its size (editable in cm) and
+ * its rotation. Shown only while an item is selected.
+ */
+export function FurniturePanel() {
+  const item = usePlanStore((s) =>
+    s.furniture.find((f) => f.id === s.selectedId),
+  )
+  if (!item) return null
+  // A fresh form for each item, so edits never carry over to another
+  return <FurniturePanelForm key={item.id} item={item} />
+}
+
+type SizeField = 'width' | 'depth'
+
+function FurniturePanelForm({ item }: { item: Furniture }) {
+  const [text, setText] = useState<Record<SizeField, string>>({
+    width: String(item.widthCm),
+    depth: String(item.depthCm),
+  })
+  const [error, setError] = useState<SizeField>()
+
+  // Apply the size typed so far (on Enter or leaving a field), if it is valid
+  const apply = () => {
+    const widthCm = parseLength(text.width, 'cm')
+    const depthCm = parseLength(text.depth, 'cm')
+    if (widthCm === null) return setError('width')
+    if (depthCm === null) return setError('depth')
+    setError(undefined)
+    setText({ width: String(widthCm), depth: String(depthCm) })
+    planStore.getState().resizeFurniture(item.id, widthCm, depthCm)
+  }
+
+  const input = (field: SizeField, label: string) => (
+    <label>
+      {label}
+      <input
+        className="input"
+        type="text"
+        inputMode="decimal"
+        value={text[field]}
+        aria-invalid={error === field}
+        onChange={(e) => setText({ ...text, [field]: e.currentTarget.value })}
+        onBlur={apply}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') apply()
+        }}
+      />
+    </label>
+  )
+
+  return (
+    <aside className="panel" aria-label="Selected item">
+      <h2>{item.name}</h2>
+      <div className="panel-fields">
+        {input('width', 'Width (cm)')}
+        {input('depth', 'Depth (cm)')}
+      </div>
+      {error && (
+        <p className="error" role="alert">
+          {SIZE_ERROR}
+        </p>
+      )}
+      <p className="panel-note">Rotation {formatRotation(item.rotationDeg)}</p>
+    </aside>
+  )
+}
+
+/** A rotation for display, in whole degrees. */
+const formatRotation = (deg: number) => `${Math.round(deg) % 360}°`
 
 type Field = 'name' | 'width' | 'depth'
 

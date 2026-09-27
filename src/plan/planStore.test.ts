@@ -537,6 +537,77 @@ describe('furniture', () => {
     expect(store.getState().calibrationDraft).toBeNull()
   })
 
+  it('moves an item to a new centre', () => {
+    const store = calibrated()
+    store.getState().addFurniture(sofa, viewport)
+
+    store.getState().moveFurniture(onlyItem(store).id, { x: 1200, y: 640 })
+
+    expect(onlyItem(store).position).toEqual({ x: 1200, y: 640 })
+  })
+
+  it('rotates an item clockwise, keeping the angle within 0–360°', () => {
+    const store = calibrated()
+    store.getState().addFurniture(sofa, viewport)
+    const { id } = onlyItem(store)
+
+    store.getState().rotateFurniture(id, 45)
+    expect(onlyItem(store).rotationDeg).toBe(45)
+
+    store.getState().rotateFurniture(id, -30)
+    expect(onlyItem(store).rotationDeg).toBe(330)
+  })
+
+  it('resizes an item in cm, redrawing it to scale around the same centre', () => {
+    const store = calibrated()
+    store.getState().addFurniture(sofa, viewport)
+
+    store.getState().resizeFurniture(onlyItem(store).id, 240, 100)
+
+    expect(onlyItem(store)).toMatchObject({
+      widthCm: 240,
+      depthCm: 100,
+      position: { x: 1000, y: 500 },
+    })
+    expect(selectFurnitureSizePx(store.getState(), onlyItem(store))).toEqual({
+      width: 120,
+      height: 50,
+    })
+  })
+
+  it('ignores a size that is not greater than zero', () => {
+    const store = calibrated()
+    store.getState().addFurniture(sofa, viewport)
+    const { id } = onlyItem(store)
+
+    store.getState().resizeFurniture(id, 0, 100)
+    store.getState().resizeFurniture(id, 100, -5)
+    store.getState().resizeFurniture(id, NaN, 100)
+
+    expect(onlyItem(store)).toMatchObject({ widthCm: 200, depthCm: 90 })
+  })
+
+  it('nudges the selected item by a real distance', () => {
+    const store = calibrated()
+    store.getState().addFurniture(sofa, viewport)
+
+    // 50 px per metre: 10 cm is 5 plan px, 1 cm half a plan px
+    store.getState().nudgeSelectedFurniture('right', 10)
+    store.getState().nudgeSelectedFurniture('up', 1)
+
+    expect(onlyItem(store).position).toEqual({ x: 1005, y: 499.5 })
+  })
+
+  it('nudges nothing while nothing is selected', () => {
+    const store = calibrated()
+    store.getState().addFurniture(sofa, viewport)
+    store.getState().clearSelection()
+
+    store.getState().nudgeSelectedFurniture('left', 10)
+
+    expect(onlyItem(store).position).toEqual({ x: 1000, y: 500 })
+  })
+
   it('drops all furniture when the plan is replaced, but not when replacing is cancelled', () => {
     const store = calibrated()
     store.getState().addFurniture(sofa, viewport)

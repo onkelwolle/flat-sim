@@ -23,6 +23,7 @@ function App() {
   const [pointer, setPointer] = useState<Point | null>(null)
   const tape = useMeasuringTape(stageRef)
   const selection = useFurnitureSelection()
+  const [overItem, setOverItem] = useState(false)
 
   const pointerOnPlan = () =>
     stageRef.current?.getRelativePointerPosition() ?? null
@@ -60,7 +61,11 @@ function App() {
         style={{
           cursor:
             navigation.style.cursor ??
-            (calibrating || measuring ? 'crosshair' : undefined),
+            (calibrating || measuring
+              ? 'crosshair'
+              : overItem
+                ? 'move'
+                : undefined),
         }}
         width={viewport.width}
         height={viewport.height}
@@ -73,7 +78,7 @@ function App() {
         {/* Bottom layer: the plan image, in its own pixel coordinates */}
         <Layer listening={false}>{plan && <Image image={plan.image} />}</Layer>
         {/* Furniture sits on the plan, under the tools' lines */}
-        {plan && <FurnitureLayer />}
+        {plan && <FurnitureLayer onHoverChange={setOverItem} />}
         {plan && <CalibrationLayer pointer={pointer} />}
         {plan && <MeasuringTapeLayer />}
       </Stage>

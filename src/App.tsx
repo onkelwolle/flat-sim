@@ -9,11 +9,14 @@ import { planStore, usePlanStore } from './plan/planStore'
 import { useFurnitureSelection } from './plan/useFurnitureSelection'
 import { useMeasuringTape } from './plan/useMeasuringTape'
 import { useViewNavigation } from './plan/useViewNavigation'
+import { ProjectNoticeBanner } from './project/ProjectNoticeBanner'
+import { useProjectPersistence } from './project/useProjectPersistence'
 import type { Point } from './plan/zoomView'
 import { useViewportSize } from './useViewportSize'
 
 function App() {
   const viewport = useViewportSize()
+  const project = useProjectPersistence(viewport)
   const plan = usePlanStore((s) => s.plan)
   const view = usePlanStore((s) => s.view)
   const calibrating = usePlanStore((s) => s.calibrationDraft !== null)
@@ -82,7 +85,14 @@ function App() {
         {plan && <CalibrationLayer pointer={pointer} />}
         {plan && <MeasuringTapeLayer />}
       </Stage>
-      <PlanControls viewport={viewport} />
+      {/* Controls wait for the saved project, so the empty state never flashes */}
+      {!project.restoring && (
+        <PlanControls viewport={viewport} onNewProject={project.newProject} />
+      )}
+      <ProjectNoticeBanner
+        notice={project.notice}
+        onDismiss={project.dismissNotice}
+      />
     </>
   )
 }

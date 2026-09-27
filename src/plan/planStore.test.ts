@@ -21,7 +21,7 @@ const plan = (name: string, width = 2000, height = 1000): Plan => {
       closedImages.add(image)
     },
   } as ImageBitmap
-  return { name, image, width, height }
+  return { name, image, width, height, source: new Blob([name]) }
 }
 
 const closed = (p: Plan) => closedImages.has(p.image)
@@ -621,5 +621,112 @@ describe('furniture', () => {
     store.getState().confirmReplace(viewport)
     expect(store.getState().furniture).toEqual([])
     expect(store.getState().selectedId).toBeNull()
+  })
+})
+
+describe('projects', () => {
+  const calibration = {
+    start: { x: 100, y: 100 },
+    end: { x: 300, y: 100 },
+    lengthCm: 400,
+    scale: { pixelsPerMetre: 50 },
+  }
+  const item = (id: string) => ({
+    id,
+    name: 'Sofa',
+    widthCm: 200,
+    depthCm: 90,
+    position: { x: 400, y: 300 },
+    rotationDeg: 45,
+  })
+
+  it('restores a saved plan, calibration and furniture, fitted to the viewport', () => {
+    const store = createPlanStore()
+
+    store.getState().restoreProject(
+      {
+        plan: plan('flat.png'),
+        calibration,
+        furniture: [item('item-1'), item('item-7')],
+      },
+      viewport,
+    )
+
+    const state = store.getState()
+    expect(state.plan?.name).toBe('flat.png')
+    expect(state.calibration).toEqual(calibration)
+    expect(state.furniture.map((f) => f.id)).toEqual(['item-1', 'item-7'])
+    expect(state.furniture[0]).toEqual(item('item-1'))
+    expect(state.view).toEqual({ scale: 0.5, x: 0, y: 150 })
+    expect(state.selectedId).toBeNull()
+  })
+
+  it('gives items added after a restore ids that no restored item has', () => {
+    const store = createPlanStore()
+    store.getState().restoreProject(
+      {
+        plan: plan('flat.png'),
+        calibration,
+        furniture: [item('item-7'), item('item-2')],
+      },
+      viewport,
+    )
+
+    store
+      .getState()
+      .addFurniture({ name: 'Bed', widthCm: 140, depthCm: 200 }, viewport)
+
+    expect(store.getState().furniture.map((f) => f.id)).toEqual([
+      'item-7',
+      'item-2',
+      'item-8',
+    ])
+  })
+
+  it('starts a new project with nothing on it, releasing the images', () => {
+    const store = createPlanStore()
+    const current = plan('flat.png')
+    const pending = plan('next.png')
+    store
+      .getState()
+      .restoreProject(
+        { plan: current, calibration, furniture: [item('item-3')] },
+        viewport,
+      )
+    store.getState().selectFurniture('item-3')
+    store.getState().offerPlan(pending, viewport)
+
+    store.getState().newProject()
+
+    const state = store.getState()
+    expect(state.plan).toBeNull()
+    expect(state.pendingPlan).toBeNull()
+    expect(state.calibration).toBeNull()
+    expect(state.furniture).toEqual([])
+    expect(state.selectedId).toBeNull()
+    expect(closed(current)).toBe(true)
+    expect(closed(pending)).toBe(true)
+  })
+
+  it('numbers items from the start again in a new project', () => {
+    const store = createPlanStore()
+    store
+      .getState()
+      .restoreProject(
+        { plan: plan('flat.png'), calibration, furniture: [item('item-3')] },
+        viewport,
+      )
+    store.getState().newProject()
+    store.getState().offerPlan(plan('flat.png'), viewport)
+    store.getState().startCalibration()
+    store.getState().placeCalibrationPoint({ x: 100, y: 100 })
+    store.getState().placeCalibrationPoint({ x: 300, y: 100 })
+    store.getState().finishCalibration(400)
+
+    store
+      .getState()
+      .addFurniture({ name: 'Bed', widthCm: 140, depthCm: 200 }, viewport)
+
+    expect(store.getState().furniture[0]?.id).toBe('item-1')
   })
 })

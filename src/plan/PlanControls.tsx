@@ -1,10 +1,17 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type MouseEvent } from 'react'
 import type { Size } from '../useViewportSize'
 import { loadPlanFile, PLAN_FILE_TYPES } from './loadPlanFile'
 import { planStore, usePlanStore } from './planStore'
 import { useFileDrop } from './useFileDrop'
 
-/** HTML overlay for opening a plan: file picker, drop target, replace prompt. */
+// A clicked button keeps focus, so the space bar would press it again instead
+// of panning; keyboard users still focus buttons with Tab
+const keepFocusOffToolbar = (e: MouseEvent) => e.preventDefault()
+
+/**
+ * HTML overlay for opening a plan (file picker, drop target, replace prompt)
+ * and fitting it to the screen.
+ */
 export function PlanControls({ viewport }: { viewport: Size }) {
   const hasPlan = usePlanStore((s) => s.plan !== null)
   const pendingPlan = usePlanStore((s) => s.pendingPlan)
@@ -35,10 +42,21 @@ export function PlanControls({ viewport }: { viewport: Size }) {
         <button
           type="button"
           className="button"
+          onMouseDown={keepFocusOffToolbar}
           onClick={() => inputRef.current?.click()}
         >
           Open plan…
         </button>
+        {hasPlan && (
+          <button
+            type="button"
+            className="button"
+            onMouseDown={keepFocusOffToolbar}
+            onClick={() => planStore.getState().fitToScreen(viewport)}
+          >
+            Fit to screen
+          </button>
+        )}
         <input
           ref={inputRef}
           type="file"

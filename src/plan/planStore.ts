@@ -2,6 +2,11 @@ import { useStore } from 'zustand'
 import { createStore } from 'zustand/vanilla'
 import type { Size } from '../useViewportSize'
 import { fitToViewport, type View } from './fitToViewport'
+import { zoomView, type Point } from './zoomView'
+
+/** Zoom limits, as multiples of the scale that fits the plan to the viewport. */
+export const MIN_ZOOM = 0.25
+export const MAX_ZOOM = 16
 
 /** A decoded floor plan image; its pixels are the plan's coordinate space. */
 export type Plan = {
@@ -22,6 +27,12 @@ export type PlanState = {
   confirmReplace: (viewport: Size) => void
   /** Keep the current plan and drop the pending one. */
   cancelReplace: () => void
+  /** Scale the view by `factor` around a screen point, within the zoom limits. */
+  zoomAt: (at: Point, factor: number, viewport: Size) => void
+  /** Move the view by a screen distance. */
+  panBy: (delta: Point) => void
+  /** Fit the whole plan to the viewport again. */
+  fitToScreen: (viewport: Size) => void
 }
 
 export function createPlanStore() {
@@ -45,6 +56,26 @@ export function createPlanStore() {
     cancelReplace: () => {
       get().pendingPlan?.image.close()
       set({ pendingPlan: null })
+    },
+    zoomAt: (at, factor, viewport) => {
+      const { plan, view } = get()
+      if (!plan) return
+      const fit = fitToViewport(plan, viewport).scale
+      set({
+        view: zoomView(view, at, factor, {
+          min: fit * MIN_ZOOM,
+          max: fit * MAX_ZOOM,
+        }),
+      })
+    },
+    panBy: (delta) => {
+      const { plan, view } = get()
+      if (!plan) return
+      set({ view: { ...view, x: view.x + delta.x, y: view.y + delta.y } })
+    },
+    fitToScreen: (viewport) => {
+      const { plan } = get()
+      if (plan) set({ view: fitToViewport(plan, viewport) })
     },
   }))
 }

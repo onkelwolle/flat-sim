@@ -4,6 +4,7 @@ import { CalibrateButton, CalibrationStatus } from './CalibrationControls'
 import {
   AddFurnitureButton,
   DeleteFurnitureButton,
+  FurniturePanel,
   FurnitureStatus,
 } from './FurnitureControls'
 import { MeasureButton, MeasuringTapeStatus } from './MeasuringTapeControls'
@@ -109,6 +110,8 @@ export function PlanControls({ viewport }: { viewport: Size }) {
         ) : (
           <CalibrationStatus />
         ))}
+
+      <FurniturePanel />
 
       {dragging && <div className="drop-overlay">Drop to open the plan</div>}
 

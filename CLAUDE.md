@@ -4,7 +4,7 @@ Browser app for planning furniture placement on a scaled floor plan. Stack and r
 
 ## Commands
 
-Toolchain (Node, pnpm) is pinned in `mise.toml`; run `mise install` first.
+Toolchain (Node, pnpm, gitleaks) is pinned in `mise.toml`; run `mise install` first. `pnpm install` points git at `.githooks/`, whose pre-commit hook blocks staged secrets via gitleaks.
 
 - `pnpm dev`: dev server at http://localhost:5173/flat-sim/
 - `pnpm typecheck`, `pnpm lint` (oxlint), `pnpm format:check` / `pnpm format` (Prettier)

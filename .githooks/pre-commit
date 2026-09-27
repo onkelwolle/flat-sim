@@ -1,0 +1,14 @@
+#!/bin/sh
+# Block commits that contain secrets. Enabled via `git config core.hooksPath
+# .githooks`, which `pnpm install` sets through the `prepare` script.
+# Bypass a false positive with `git commit --no-verify`, or add a
+# `gitleaks:allow` comment on the offending line.
+
+if command -v mise >/dev/null 2>&1; then
+  exec mise exec -- gitleaks git --pre-commit --staged --redact --verbose
+elif command -v gitleaks >/dev/null 2>&1; then
+  exec gitleaks git --pre-commit --staged --redact --verbose
+else
+  echo "pre-commit: gitleaks not found; run 'mise install'" >&2
+  exit 1
+fi

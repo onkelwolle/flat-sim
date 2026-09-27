@@ -2,9 +2,11 @@ import type Konva from 'konva'
 import { useRef, useState } from 'react'
 import { Image, Layer, Stage } from 'react-konva'
 import { CalibrationLayer } from './plan/CalibrationLayer'
+import { FurnitureLayer } from './plan/FurnitureLayer'
 import { MeasuringTapeLayer } from './plan/MeasuringTapeLayer'
 import { PlanControls } from './plan/PlanControls'
 import { planStore, usePlanStore } from './plan/planStore'
+import { useFurnitureSelection } from './plan/useFurnitureSelection'
 import { useMeasuringTape } from './plan/useMeasuringTape'
 import { useViewNavigation } from './plan/useViewNavigation'
 import type { Point } from './plan/zoomView'
@@ -20,6 +22,7 @@ function App() {
   // Pointer in plan pixels, tracked only while the calibrate tool needs it
   const [pointer, setPointer] = useState<Point | null>(null)
   const tape = useMeasuringTape(stageRef)
+  const selection = useFurnitureSelection()
 
   const pointerOnPlan = () =>
     stageRef.current?.getRelativePointerPosition() ?? null
@@ -42,11 +45,18 @@ function App() {
       <Stage
         ref={stageRef}
         {...navigation}
+        onPointerDown={(e) => {
+          selection.onPointerDown(e)
+          navigation.onPointerDown(e)
+        }}
         onPointerMove={(e) => {
           setPointer(calibrating ? pointerOnPlan() : null)
           tape.onPointerMove(e.evt)
         }}
-        onPointerUp={(e) => tape.onPointerUp(e.evt)}
+        onPointerUp={(e) => {
+          selection.onPointerUp(e)
+          tape.onPointerUp(e.evt)
+        }}
         style={{
           cursor:
             navigation.style.cursor ??
@@ -62,6 +72,8 @@ function App() {
       >
         {/* Bottom layer: the plan image, in its own pixel coordinates */}
         <Layer listening={false}>{plan && <Image image={plan.image} />}</Layer>
+        {/* Furniture sits on the plan, under the tools' lines */}
+        {plan && <FurnitureLayer />}
         {plan && <CalibrationLayer pointer={pointer} />}
         {plan && <MeasuringTapeLayer />}
       </Stage>

@@ -12,19 +12,22 @@ export const tallPlan = fixture('tall-plan.jpg')
 type Rgba = [number, number, number, number]
 type Colour = 'red' | 'green' | 'blue' | 'none'
 
-/** Colour drawn by the bottom (plan) layer at a viewport point. */
-const planPixel = (page: Page, x: number, y: number) =>
+/** Colour drawn by a canvas layer (0 is the plan) at a viewport point. */
+const layerPixel = (page: Page, layer: number, x: number, y: number) =>
   page.evaluate(
-    ([x, y]) => {
-      const canvas = document.querySelector('canvas')!
+    ([layer, x, y]) => {
+      const canvas = document.querySelectorAll('canvas')[layer]!
       const ratio = canvas.width / canvas.clientWidth
       const data = canvas
         .getContext('2d')!
         .getImageData(x * ratio, y * ratio, 1, 1).data
       return [...data] as Rgba
     },
-    [x, y],
+    [layer, x, y],
   )
+
+const planPixel = (page: Page, x: number, y: number) =>
+  layerPixel(page, 0, x, y)
 
 const looksLike = (pixel: Rgba, colour: Colour) => {
   const [r, g, b, a] = pixel
@@ -93,3 +96,19 @@ export const expectTallPlanFitted = async (page: Page) => {
   await expectPlanColour(page, 540, 360, 'none')
   await expectPlanColour(page, 740, 360, 'none')
 }
+
+/** The furniture layer sits right above the plan. */
+const FURNITURE_LAYER = 1
+
+/** Whether furniture is (or is not) drawn at a viewport point. */
+export const expectFurnitureAt = async (
+  page: Page,
+  x: number,
+  y: number,
+  drawn = true,
+) =>
+  expect
+    .poll(async () => (await layerPixel(page, FURNITURE_LAYER, x, y))[3] > 0, {
+      message: `furniture should ${drawn ? '' : 'not '}be drawn at (${x}, ${y})`,
+    })
+    .toBe(drawn)

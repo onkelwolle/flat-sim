@@ -3,8 +3,8 @@ import { createStore } from 'zustand/vanilla'
 import type { Size } from '../useViewportSize'
 import { fitToViewport, type View } from './fitToViewport'
 import { distance } from './geometry'
-import { pxToCm, scaleFromLine, type Scale } from './scale'
-import { zoomView, type Point } from './zoomView'
+import { cmToPx, pxToCm, scaleFromLine, type Scale } from './scale'
+import { screenToPlan, zoomView, type Point } from './zoomView'
 
 /** Zoom limits, as multiples of the scale that fits the plan to the viewport. */
 export const MIN_ZOOM = 0.25
@@ -40,6 +40,26 @@ export type Tape = {
   stretching: boolean
 }
 
+/** What the user enters to add an item of furniture. */
+export type FurnitureSpec = {
+  name: string
+  /** Real size in centimetres, so re-calibrating keeps it correct. */
+  widthCm: number
+  depthCm: number
+}
+
+/**
+ * A rectangular item of furniture on the plan. Its size is real (cm) and
+ * converts through the scale when drawn; its centre is in plan pixels.
+ */
+export type Furniture = FurnitureSpec & {
+  id: string
+  /** Centre of the item, in plan pixels. */
+  position: Point
+  /** Clockwise rotation about the centre, in degrees; 0 keeps width along x. */
+  rotationDeg: number
+}
+
 export type PlanState = {
   plan: Plan | null
   /** The plan's calibration; null until the scale is set. */
@@ -51,6 +71,10 @@ export type PlanState = {
   calibrationDraft: Point[] | null
   /** The measuring tape, or null when the tool is not active. */
   tape: Tape | null
+  /** Furniture placed on the plan, bottom to top. */
+  furniture: Furniture[]
+  /** Id of the selected item, or null when nothing is selected. */
+  selectedId: string | null
   /** A new plan waiting for the user to confirm it replaces `plan`. */
   pendingPlan: Plan | null
   view: View
@@ -84,14 +108,32 @@ export type PlanState = {
   finishMeasurementAt: (point: Point) => void
   /** Leave the measuring tape; its measurement disappears. */
   stopMeasuring: () => void
+  /** Add an item centred in the view; only possible once the scale is set. */
+  addFurniture: (spec: FurnitureSpec, viewport: Size) => void
+  /** Select an item, replacing any earlier selection. */
+  selectFurniture: (id: string) => void
+  /** Select nothing. */
+  clearSelection: () => void
+  /** Remove the selected item from the plan. */
+  deleteSelectedFurniture: () => void
 }
 
+/** State change that selects an item; one activity at a time, so tools end. */
+const selectItem = (id: string) => ({
+  selectedId: id,
+  calibrationDraft: null,
+  tape: null,
+})
+
 export function createPlanStore() {
+  let lastId = 0
   return createStore<PlanState>()((set, get) => ({
     plan: null,
     calibration: null,
     calibrationDraft: null,
     tape: null,
+    furniture: [],
+    selectedId: null,
     pendingPlan: null,
     view: { scale: 1, x: 0, y: 0 },
     offerPlan: (plan, viewport) => {
@@ -111,6 +153,9 @@ export function createPlanStore() {
         calibration: null,
         calibrationDraft: null,
         tape: null,
+        // Furniture was placed against the old image
+        furniture: [],
+        selectedId: null,
       })
       // Released after the swap so nothing renders a closed bitmap
       old?.image.close()
@@ -141,7 +186,8 @@ export function createPlanStore() {
     },
     startCalibration: () => {
       // One tool at a time
-      if (get().plan) set({ calibrationDraft: [], tape: null })
+      if (get().plan)
+        set({ calibrationDraft: [], tape: null, selectedId: null })
     },
     placeCalibrationPoint: (point) => {
       const { calibrationDraft: draft } = get()
@@ -170,6 +216,7 @@ export function createPlanStore() {
       set({
         tape: { measurement: null, stretching: false },
         calibrationDraft: null,
+        selectedId: null,
       })
     },
     startMeasurementAt: (point) => {
@@ -199,6 +246,34 @@ export function createPlanStore() {
       })
     },
     stopMeasuring: () => set({ tape: null }),
+    addFurniture: (spec, viewport) => {
+      const { furniture, view } = get()
+      if (!selectScale(get())) return
+      const centre = { x: viewport.width / 2, y: viewport.height / 2 }
+      const item: Furniture = {
+        ...spec,
+        id: `item-${++lastId}`,
+        position: screenToPlan(view, centre),
+        rotationDeg: 0,
+      }
+      set({
+        furniture: [...furniture, item],
+        // Selecting leaves any tool, so the new item is ready to work on
+        ...selectItem(item.id),
+      })
+    },
+    selectFurniture: (id) => {
+      if (get().furniture.some((f) => f.id === id)) set(selectItem(id))
+    },
+    clearSelection: () => set({ selectedId: null }),
+    deleteSelectedFurniture: () => {
+      const { furniture, selectedId } = get()
+      if (!selectedId) return
+      set({
+        furniture: furniture.filter((f) => f.id !== selectedId),
+        selectedId: null,
+      })
+    },
   }))
 }
 
@@ -220,6 +295,22 @@ export const selectMeasuredLength = (state: PlanState): number | null => {
   const measurement = state.tape?.measurement
   if (!scale || !measurement) return null
   return pxToCm(distance(measurement.start, measurement.end), scale)
+}
+
+/**
+ * An item's size on the plan, in plan pixels (`width` along its width,
+ * `height` along its depth), or null while the plan has no scale.
+ */
+export const selectFurnitureSizePx = (
+  state: PlanState,
+  item: Furniture,
+): Size | null => {
+  const scale = selectScale(state)
+  if (!scale) return null
+  return {
+    width: cmToPx(item.widthCm, scale),
+    height: cmToPx(item.depthCm, scale),
+  }
 }
 
 export const usePlanStore = <T>(selector: (state: PlanState) => T): T =>

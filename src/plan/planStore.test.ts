@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { createPlanStore, MAX_ZOOM, MIN_ZOOM, type Plan } from './planStore'
+import type { Point } from './zoomView'
 
 const viewport = { width: 1000, height: 800 }
 
@@ -135,5 +136,131 @@ describe('plan view navigation', () => {
     store.getState().fitToScreen(viewport)
 
     expect(store.getState().view).toEqual(initial)
+  })
+})
+
+describe('calibrating the scale', () => {
+  const loaded = () => {
+    const store = createPlanStore()
+    store.getState().offerPlan(plan('flat.png'), viewport)
+    return store
+  }
+
+  type Store = ReturnType<typeof loaded>
+
+  const drawLine = (store: Store, start: Point, end: Point) => {
+    store.getState().startCalibration()
+    store.getState().placeCalibrationPoint(start)
+    store.getState().placeCalibrationPoint(end)
+  }
+
+  // Calibrated at 50 px per metre
+  const calibrated = () => {
+    const store = loaded()
+    drawLine(store, { x: 100, y: 100 }, { x: 300, y: 100 })
+    store.getState().finishCalibration(400)
+    return store
+  }
+
+  it('has no scale until a plan is calibrated', () => {
+    expect(loaded().getState().calibration).toBeNull()
+  })
+
+  it('sets the scale from two points on the plan and their real length', () => {
+    const store = loaded()
+
+    store.getState().startCalibration()
+    store.getState().placeCalibrationPoint({ x: 100, y: 100 })
+    store.getState().placeCalibrationPoint({ x: 300, y: 100 })
+    store.getState().finishCalibration(400)
+
+    expect(store.getState().calibration).toEqual({
+      start: { x: 100, y: 100 },
+      end: { x: 300, y: 100 },
+      lengthCm: 400,
+      scale: { pixelsPerMetre: 50 },
+    })
+    expect(store.getState().calibrationDraft).toBeNull()
+  })
+
+  it('replaces the scale when the plan is calibrated again', () => {
+    const store = calibrated()
+
+    drawLine(store, { x: 0, y: 0 }, { x: 0, y: 300 })
+    store.getState().finishCalibration(150)
+
+    expect(store.getState().calibration?.scale).toEqual({ pixelsPerMetre: 200 })
+    expect(store.getState().calibration?.end).toEqual({ x: 0, y: 300 })
+  })
+
+  it('keeps the current scale when re-calibrating is cancelled', () => {
+    const store = calibrated()
+    const before = store.getState().calibration
+
+    drawLine(store, { x: 0, y: 0 }, { x: 0, y: 300 })
+    store.getState().cancelCalibration()
+
+    expect(store.getState().calibration).toBe(before)
+    expect(store.getState().calibrationDraft).toBeNull()
+  })
+
+  it('ignores a second point on top of the first', () => {
+    const store = loaded()
+    store.getState().startCalibration()
+    store.getState().placeCalibrationPoint({ x: 100, y: 100 })
+
+    store.getState().placeCalibrationPoint({ x: 100, y: 100 })
+
+    expect(store.getState().calibrationDraft).toEqual([{ x: 100, y: 100 }])
+  })
+
+  it('ignores clicks once both ends of the line are placed', () => {
+    const store = loaded()
+    drawLine(store, { x: 100, y: 100 }, { x: 300, y: 100 })
+
+    store.getState().placeCalibrationPoint({ x: 500, y: 500 })
+
+    expect(store.getState().calibrationDraft).toEqual([
+      { x: 100, y: 100 },
+      { x: 300, y: 100 },
+    ])
+  })
+
+  it('does not set the scale before both ends are placed or from a non-positive length', () => {
+    const store = loaded()
+    store.getState().startCalibration()
+    store.getState().placeCalibrationPoint({ x: 100, y: 100 })
+    store.getState().finishCalibration(400)
+    expect(store.getState().calibration).toBeNull()
+
+    store.getState().placeCalibrationPoint({ x: 300, y: 100 })
+    store.getState().finishCalibration(0)
+    store.getState().finishCalibration(-5)
+    store.getState().finishCalibration(NaN)
+    expect(store.getState().calibration).toBeNull()
+    expect(store.getState().calibrationDraft).toHaveLength(2)
+  })
+
+  it('drops the scale when the plan is replaced, but not when replacing is cancelled', () => {
+    const store = calibrated()
+    store.getState().offerPlan(plan('other.png'), viewport)
+    store.getState().cancelReplace()
+    expect(store.getState().calibration).not.toBeNull()
+
+    store.getState().startCalibration()
+    store.getState().placeCalibrationPoint({ x: 10, y: 10 })
+    store.getState().offerPlan(plan('other.png'), viewport)
+    store.getState().confirmReplace(viewport)
+
+    expect(store.getState().calibration).toBeNull()
+    expect(store.getState().calibrationDraft).toBeNull()
+  })
+
+  it('cannot calibrate while no plan is loaded', () => {
+    const store = createPlanStore()
+
+    store.getState().startCalibration()
+
+    expect(store.getState().calibrationDraft).toBeNull()
   })
 })

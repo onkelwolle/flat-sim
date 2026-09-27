@@ -44,10 +44,14 @@ type StageNavigationProps = {
 /**
  * Zoom (wheel, trackpad pinch) and pan (drag on empty canvas, space+drag) the
  * plan view. Returns props for the Stage.
+ *
+ * While a tool is active, pass `onCanvasPress`: a primary press on the canvas
+ * then goes to the tool instead of panning, and only space+drag pans.
  */
 export function useViewNavigation(
   stageRef: RefObject<Konva.Stage | null>,
   viewport: Size,
+  onCanvasPress?: () => void,
 ): StageNavigationProps {
   const [spaceHeld, setSpaceHeld] = useState(false)
   const [panning, setPanning] = useState(false)
@@ -160,8 +164,11 @@ export function useViewNavigation(
 
   const onPointerDown = (e: KonvaEventObject<PointerEvent>) => {
     const { button, isPrimary, clientX, clientY } = e.evt
+    if (button !== 0 || !isPrimary) return
+    // An active tool takes presses on the canvas; space+drag still pans
+    if (onCanvasPress && !spaceHeld) return onCanvasPress()
     const onEmptyCanvas = e.target === e.target.getStage()
-    if (button !== 0 || !isPrimary || !(spaceHeld || onEmptyCanvas)) return
+    if (!(spaceHeld || onEmptyCanvas)) return
     lastPointer.current = { x: clientX, y: clientY }
     setPanning(true)
   }

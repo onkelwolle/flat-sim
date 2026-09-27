@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import { createPlanStore, MAX_ZOOM, MIN_ZOOM, type Plan } from './planStore'
+import {
+  createPlanStore,
+  MAX_ZOOM,
+  MIN_ZOOM,
+  selectMeasuredLength,
+  type Plan,
+} from './planStore'
 import type { Point } from './zoomView'
 
 const viewport = { width: 1000, height: 800 }
@@ -262,5 +268,124 @@ describe('calibrating the scale', () => {
     store.getState().startCalibration()
 
     expect(store.getState().calibrationDraft).toBeNull()
+  })
+})
+
+describe('measuring with the tape', () => {
+  // Calibrated at 50 px per metre
+  const calibrated = () => {
+    const store = createPlanStore()
+    store.getState().offerPlan(plan('flat.png'), viewport)
+    store.getState().startCalibration()
+    store.getState().placeCalibrationPoint({ x: 100, y: 100 })
+    store.getState().placeCalibrationPoint({ x: 300, y: 100 })
+    store.getState().finishCalibration(400)
+    return store
+  }
+
+  const measured = (store: ReturnType<typeof calibrated>) =>
+    selectMeasuredLength(store.getState())
+
+  it('measures the real distance between two points on the plan', () => {
+    const store = calibrated()
+
+    store.getState().startMeasuring()
+    store.getState().startMeasurementAt({ x: 100, y: 100 })
+    store.getState().finishMeasurementAt({ x: 250, y: 300 })
+
+    // 250 px at 50 px per metre
+    expect(measured(store)).toBe(500)
+    expect(store.getState().tape?.measurement).toEqual({
+      start: { x: 100, y: 100 },
+      end: { x: 250, y: 300 },
+    })
+  })
+
+  it('shows the distance live while the end follows the pointer', () => {
+    const store = calibrated()
+    store.getState().startMeasuring()
+    store.getState().startMeasurementAt({ x: 100, y: 100 })
+
+    store.getState().stretchMeasurementTo({ x: 100, y: 125 })
+    expect(measured(store)).toBe(50)
+
+    store.getState().stretchMeasurementTo({ x: 100, y: 150 })
+    expect(measured(store)).toBe(100)
+    expect(store.getState().tape?.stretching).toBe(true)
+  })
+
+  it('keeps a finished measurement until the next one starts', () => {
+    const store = calibrated()
+    store.getState().startMeasuring()
+    store.getState().startMeasurementAt({ x: 100, y: 100 })
+    store.getState().finishMeasurementAt({ x: 200, y: 100 })
+
+    store.getState().stretchMeasurementTo({ x: 400, y: 100 })
+    expect(measured(store)).toBe(200)
+
+    store.getState().startMeasurementAt({ x: 0, y: 0 })
+    expect(store.getState().tape?.measurement).toEqual({
+      start: { x: 0, y: 0 },
+      end: { x: 0, y: 0 },
+    })
+  })
+
+  it('does not finish a measurement on top of its start', () => {
+    const store = calibrated()
+    store.getState().startMeasuring()
+    store.getState().startMeasurementAt({ x: 100, y: 100 })
+
+    store.getState().finishMeasurementAt({ x: 100, y: 100 })
+
+    expect(store.getState().tape?.stretching).toBe(true)
+  })
+
+  it('drops the measurement when the tape is left', () => {
+    const store = calibrated()
+    store.getState().startMeasuring()
+    store.getState().startMeasurementAt({ x: 100, y: 100 })
+    store.getState().finishMeasurementAt({ x: 200, y: 100 })
+
+    store.getState().stopMeasuring()
+
+    expect(store.getState().tape).toBeNull()
+    expect(measured(store)).toBeNull()
+
+    store.getState().startMeasuring()
+    expect(store.getState().tape?.measurement).toBeNull()
+  })
+
+  it('cannot measure until the scale is set', () => {
+    const store = createPlanStore()
+    store.getState().offerPlan(plan('flat.png'), viewport)
+
+    store.getState().startMeasuring()
+
+    expect(store.getState().tape).toBeNull()
+  })
+
+  it('leaves the calibrate tool when measuring starts, and the other way round', () => {
+    const store = calibrated()
+    store.getState().startCalibration()
+    store.getState().placeCalibrationPoint({ x: 10, y: 10 })
+
+    store.getState().startMeasuring()
+    expect(store.getState().calibrationDraft).toBeNull()
+    expect(store.getState().tape).not.toBeNull()
+
+    store.getState().startCalibration()
+    expect(store.getState().tape).toBeNull()
+    expect(store.getState().calibrationDraft).toEqual([])
+  })
+
+  it('leaves the tape when the plan is replaced', () => {
+    const store = calibrated()
+    store.getState().startMeasuring()
+    store.getState().startMeasurementAt({ x: 100, y: 100 })
+
+    store.getState().offerPlan(plan('other.png'), viewport)
+    store.getState().confirmReplace(viewport)
+
+    expect(store.getState().tape).toBeNull()
   })
 })

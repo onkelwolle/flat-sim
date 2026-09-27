@@ -1,3 +1,4 @@
+import { distance } from './geometry'
 import type { Point } from './zoomView'
 
 /**
@@ -12,8 +13,7 @@ export function scaleFromLine(
   end: Point,
   lengthCm: number,
 ): Scale {
-  const px = Math.hypot(end.x - start.x, end.y - start.y)
-  return { pixelsPerMetre: px / (lengthCm / 100) }
+  return { pixelsPerMetre: distance(start, end) / (lengthCm / 100) }
 }
 
 /** Real length, in centimetres, of a distance in plan pixels. */

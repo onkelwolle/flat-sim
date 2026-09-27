@@ -2,7 +2,8 @@ import { useStore } from 'zustand'
 import { createStore } from 'zustand/vanilla'
 import type { Size } from '../useViewportSize'
 import { fitToViewport, type View } from './fitToViewport'
-import { scaleFromLine, type Scale } from './scale'
+import { distance } from './geometry'
+import { pxToCm, scaleFromLine, type Scale } from './scale'
 import { zoomView, type Point } from './zoomView'
 
 /** Zoom limits, as multiples of the scale that fits the plan to the viewport. */
@@ -28,6 +29,17 @@ export type Calibration = {
   scale: Scale
 }
 
+/** A straight line between two points on the plan, in plan pixels. */
+export type Measurement = { start: Point; end: Point }
+
+/** The measuring tape while it is active. */
+export type Tape = {
+  /** The current measurement, if one has been started. */
+  measurement: Measurement | null
+  /** Whether the measurement's end still follows the pointer. */
+  stretching: boolean
+}
+
 export type PlanState = {
   plan: Plan | null
   /** The plan's calibration; null until the scale is set. */
@@ -37,6 +49,8 @@ export type PlanState = {
    * is not active.
    */
   calibrationDraft: Point[] | null
+  /** The measuring tape, or null when the tool is not active. */
+  tape: Tape | null
   /** A new plan waiting for the user to confirm it replaces `plan`. */
   pendingPlan: Plan | null
   view: View
@@ -60,6 +74,16 @@ export type PlanState = {
   finishCalibration: (lengthCm: number) => void
   /** Leave the calibrate tool, keeping any earlier calibration. */
   cancelCalibration: () => void
+  /** Activate the measuring tape; only possible once the scale is set. */
+  startMeasuring: () => void
+  /** Start a new measurement at a point, in plan pixels; its end follows. */
+  startMeasurementAt: (point: Point) => void
+  /** Move the end of the measurement being stretched. */
+  stretchMeasurementTo: (point: Point) => void
+  /** Fix the end of the measurement being stretched. */
+  finishMeasurementAt: (point: Point) => void
+  /** Leave the measuring tape; its measurement disappears. */
+  stopMeasuring: () => void
 }
 
 export function createPlanStore() {
@@ -67,6 +91,7 @@ export function createPlanStore() {
     plan: null,
     calibration: null,
     calibrationDraft: null,
+    tape: null,
     pendingPlan: null,
     view: { scale: 1, x: 0, y: 0 },
     offerPlan: (plan, viewport) => {
@@ -85,6 +110,7 @@ export function createPlanStore() {
         // A new image has its own scale
         calibration: null,
         calibrationDraft: null,
+        tape: null,
       })
       // Released after the swap so nothing renders a closed bitmap
       old?.image.close()
@@ -114,7 +140,8 @@ export function createPlanStore() {
       if (plan) set({ view: fitToViewport(plan, viewport) })
     },
     startCalibration: () => {
-      if (get().plan) set({ calibrationDraft: [] })
+      // One tool at a time
+      if (get().plan) set({ calibrationDraft: [], tape: null })
     },
     placeCalibrationPoint: (point) => {
       const { calibrationDraft: draft } = get()
@@ -138,6 +165,40 @@ export function createPlanStore() {
       })
     },
     cancelCalibration: () => set({ calibrationDraft: null }),
+    startMeasuring: () => {
+      if (!selectScale(get())) return
+      set({
+        tape: { measurement: null, stretching: false },
+        calibrationDraft: null,
+      })
+    },
+    startMeasurementAt: (point) => {
+      if (!get().tape) return
+      set({
+        tape: { measurement: { start: point, end: point }, stretching: true },
+      })
+    },
+    stretchMeasurementTo: (point) => {
+      const { tape } = get()
+      if (!tape?.measurement || !tape.stretching) return
+      set({
+        tape: { ...tape, measurement: { ...tape.measurement, end: point } },
+      })
+    },
+    finishMeasurementAt: (point) => {
+      const { tape } = get()
+      if (!tape?.measurement || !tape.stretching) return
+      const { start } = tape.measurement
+      // Nothing to measure yet; the end keeps following the pointer
+      if (start.x === point.x && start.y === point.y) return
+      set({
+        tape: {
+          measurement: { ...tape.measurement, end: point },
+          stretching: false,
+        },
+      })
+    },
+    stopMeasuring: () => set({ tape: null }),
   }))
 }
 
@@ -149,6 +210,17 @@ export const planStore = createPlanStore()
  */
 export const selectScale = (state: PlanState): Scale | null =>
   state.calibration?.scale ?? null
+
+/**
+ * Real length, in centimetres, of the measuring tape's current measurement,
+ * or null when there is none.
+ */
+export const selectMeasuredLength = (state: PlanState): number | null => {
+  const scale = selectScale(state)
+  const measurement = state.tape?.measurement
+  if (!scale || !measurement) return null
+  return pxToCm(distance(measurement.start, measurement.end), scale)
+}
 
 export const usePlanStore = <T>(selector: (state: PlanState) => T): T =>
   useStore(planStore, selector)

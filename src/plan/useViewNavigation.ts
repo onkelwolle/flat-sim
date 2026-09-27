@@ -51,7 +51,7 @@ type StageNavigationProps = {
 export function useViewNavigation(
   stageRef: RefObject<Konva.Stage | null>,
   viewport: Size,
-  onCanvasPress?: () => void,
+  onCanvasPress?: (e: PointerEvent) => void,
 ): StageNavigationProps {
   const [spaceHeld, setSpaceHeld] = useState(false)
   const [panning, setPanning] = useState(false)
@@ -166,7 +166,7 @@ export function useViewNavigation(
     const { button, isPrimary, clientX, clientY } = e.evt
     if (button !== 0 || !isPrimary) return
     // An active tool takes presses on the canvas; space+drag still pans
-    if (onCanvasPress && !spaceHeld) return onCanvasPress()
+    if (onCanvasPress && !spaceHeld) return onCanvasPress(e.evt)
     const onEmptyCanvas = e.target === e.target.getStage()
     if (!(spaceHeld || onEmptyCanvas)) return
     lastPointer.current = { x: clientX, y: clientY }

@@ -11,7 +11,7 @@ Toolchain (Node, pnpm) is pinned in `mise.toml`; run `mise install` first.
 - `pnpm test`: Vitest unit tests (`src/**/*.test.ts`)
 - `pnpm test:e2e`: Playwright against a production build (`e2e/`); needs `pnpm exec playwright install chromium` once
 
-CI (`.github/workflows/ci.yml`) runs all of the above on PRs and `main`; `deploy.yml` publishes `main` to GitHub Pages.
+CI (`.github/workflows/ci.yml`) runs all of the above on PRs and `main`; `deploy.yml` publishes to GitHub Pages (manual trigger; Pages is not enabled yet, see workflow comment).
 
 ## Agent skills
 

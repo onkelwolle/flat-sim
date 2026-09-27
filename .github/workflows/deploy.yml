@@ -1,8 +1,8 @@
 name: Deploy to GitHub Pages
 
+# Manual only: GitHub Pages is unavailable for private repos on the free plan.
+# Re-add a `push: branches: [main]` trigger once Pages is enabled.
 on:
-  push:
-    branches: [main]
   workflow_dispatch:
 
 permissions:

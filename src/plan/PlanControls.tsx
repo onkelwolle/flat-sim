@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type MouseEvent } from 'react'
 import type { Size } from '../useViewportSize'
+import { CalibrateButton, CalibrationStatus } from './CalibrationControls'
 import { loadPlanFile, PLAN_FILE_TYPES } from './loadPlanFile'
 import { planStore, usePlanStore } from './planStore'
 import { useFileDrop } from './useFileDrop'
@@ -9,8 +10,8 @@ import { useFileDrop } from './useFileDrop'
 const keepFocusOffToolbar = (e: MouseEvent) => e.preventDefault()
 
 /**
- * HTML overlay for opening a plan (file picker, drop target, replace prompt)
- * and fitting it to the screen.
+ * HTML overlay for opening a plan (file picker, drop target, replace prompt),
+ * fitting it to the screen and calibrating its scale.
  */
 export function PlanControls({ viewport }: { viewport: Size }) {
   const hasPlan = usePlanStore((s) => s.plan !== null)
@@ -57,6 +58,7 @@ export function PlanControls({ viewport }: { viewport: Size }) {
             Fit to screen
           </button>
         )}
+        {hasPlan && <CalibrateButton onMouseDown={keepFocusOffToolbar} />}
         <input
           ref={inputRef}
           type="file"
@@ -80,6 +82,8 @@ export function PlanControls({ viewport }: { viewport: Size }) {
           Drop a floor plan image (PNG or JPG) here, or use “Open plan…”
         </p>
       )}
+
+      {hasPlan && <CalibrationStatus />}
 
       {dragging && <div className="drop-overlay">Drop to open the plan</div>}
 

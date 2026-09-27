@@ -58,6 +58,45 @@ body {
   color: #9b1c1c;
 }
 
+.status {
+  position: fixed;
+  bottom: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  margin: 0;
+  padding: 0.4rem 0.8rem;
+  border-radius: 6px;
+  background: rgb(255 255 255 / 0.92);
+  color: #333;
+  box-shadow: 0 1px 4px rgb(0 0 0 / 0.15);
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.button[aria-pressed='true'] {
+  border-color: #2b6cb0;
+  background: #e6effa;
+}
+
+.input {
+  display: block;
+  margin-top: 0.25rem;
+  padding: 0.4rem 0.5rem;
+  border: 1px solid #b8b8b2;
+  border-radius: 6px;
+  font: inherit;
+}
+
+.input[aria-invalid='true'] {
+  border-color: #9b1c1c;
+}
+
+.length-fields {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 0.75rem;
+}
+
 .empty-hint {
   position: fixed;
   inset: 0;

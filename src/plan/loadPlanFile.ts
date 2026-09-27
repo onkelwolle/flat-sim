@@ -19,5 +19,11 @@ export async function loadPlanFile(file: File): Promise<Plan> {
   } catch {
     throw new Error(`${file.name} could not be read as an image.`)
   }
-  return { name: file.name, image, width: image.width, height: image.height }
+  return {
+    name: file.name,
+    image,
+    width: image.width,
+    height: image.height,
+    source: file,
+  }
 }

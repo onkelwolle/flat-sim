@@ -196,3 +196,23 @@ body {
   gap: 8px;
   margin-top: 1rem;
 }
+
+.notice {
+  position: fixed;
+  bottom: 56px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  max-width: min(36rem, calc(100vw - 32px));
+  padding: 0.5rem 0.5rem 0.5rem 1rem;
+  border-radius: 8px;
+  background: #fff8e1;
+  color: #5c4400;
+  box-shadow: 0 1px 4px rgb(0 0 0 / 0.15);
+}
+
+.notice p {
+  margin: 0;
+}

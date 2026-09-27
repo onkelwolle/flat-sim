@@ -4,6 +4,10 @@ Planning furniture placement on a floor plan drawn to scale.
 
 ## Language
 
+**Project**:
+Everything the user is working on: the **Plan**, its **Calibration** and the **Furniture**. There is one project at a time. It is saved in the browser as it changes (once changes pause for half a second) and restored, fitted to the screen, when the app opens again; the **View**, the **Selection**, the active tool and any **Measurement** are not kept. Starting a new project drops all of it, here and in storage, after the user confirms. If storage is unavailable or fails, the app keeps working and says the project won't be saved.
+_Avoid_: document, session, file
+
 **Plan**:
 The floor plan image the user opened. Its pixels are the coordinate space for everything drawn on it.
 _Avoid_: floor plan file, background

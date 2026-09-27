@@ -21,6 +21,8 @@ export type Plan = {
   image: ImageBitmap
   width: number
   height: number
+  /** The image file the plan was decoded from, kept so it can be saved. */
+  source: Blob
 }
 
 /**
@@ -65,6 +67,16 @@ export type Furniture = FurnitureSpec & {
   rotationDeg: number
 }
 
+/**
+ * What a project keeps between visits: the plan, its calibration and the
+ * furniture on it. The view and anything in progress are left out.
+ */
+export type Project = {
+  plan: Plan | null
+  calibration: Calibration | null
+  furniture: Furniture[]
+}
+
 export type PlanState = {
   plan: Plan | null
   /** The plan's calibration; null until the scale is set. */
@@ -83,6 +95,10 @@ export type PlanState = {
   /** A new plan waiting for the user to confirm it replaces `plan`. */
   pendingPlan: Plan | null
   view: View
+  /** Replace everything with a saved project, fitted to the viewport. */
+  restoreProject: (project: Project, viewport: Size) => void
+  /** Drop the plan, its calibration and all furniture. */
+  newProject: () => void
   /** Show `plan`, fitted to the viewport, unless one is already loaded. */
   offerPlan: (plan: Plan, viewport: Size) => void
   /** Show the pending plan, fitted to the viewport. */
@@ -138,17 +154,46 @@ const selectItem = (id: string) => ({
   tape: null,
 })
 
+/** Everything that belongs to one plan, as it is before any work on it. */
+const blankProject = {
+  plan: null,
+  calibration: null,
+  calibrationDraft: null,
+  tape: null,
+  furniture: [],
+  selectedId: null,
+  pendingPlan: null,
+} satisfies Partial<PlanState>
+
+/** The number in an item id (`item-7` → 7), or 0 if it has none. */
+const idNumber = (id: string) => Number(/^item-(\d+)$/.exec(id)?.[1] ?? 0)
+
 export function createPlanStore() {
   let lastId = 0
   return createStore<PlanState>()((set, get) => ({
-    plan: null,
-    calibration: null,
-    calibrationDraft: null,
-    tape: null,
-    furniture: [],
-    selectedId: null,
-    pendingPlan: null,
+    ...blankProject,
     view: { scale: 1, x: 0, y: 0 },
+    restoreProject: ({ plan, calibration, furniture }, viewport) => {
+      const old = get()
+      // New items must not reuse a restored item's id
+      lastId = Math.max(0, ...furniture.map((f) => idNumber(f.id)))
+      set({
+        ...blankProject,
+        plan,
+        calibration,
+        furniture,
+        view: plan ? fitToViewport(plan, viewport) : old.view,
+      })
+      if (old.plan !== plan) old.plan?.image.close()
+      old.pendingPlan?.image.close()
+    },
+    newProject: () => {
+      const { plan, pendingPlan } = get()
+      lastId = 0
+      set(blankProject)
+      plan?.image.close()
+      pendingPlan?.image.close()
+    },
     offerPlan: (plan, viewport) => {
       const { plan: current, pendingPlan } = get()
       if (!current) return set({ plan, view: fitToViewport(plan, viewport) })

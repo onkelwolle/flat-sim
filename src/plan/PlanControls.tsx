@@ -1,6 +1,7 @@
-import { useEffect, useRef, useState, type MouseEvent } from 'react'
+import { useRef, useState, type MouseEvent } from 'react'
 import type { Size } from '../useViewportSize'
 import { CalibrateButton, CalibrationStatus } from './CalibrationControls'
+import { ConfirmDialog } from './ConfirmDialog'
 import {
   AddFurnitureButton,
   DeleteFurnitureButton,
@@ -18,15 +19,23 @@ const keepFocusOffToolbar = (e: MouseEvent) => e.preventDefault()
 
 /**
  * HTML overlay for opening a plan (file picker, drop target, replace prompt),
- * fitting it to the screen, calibrating its scale, measuring it and adding
- * or deleting furniture.
+ * fitting it to the screen, calibrating its scale, measuring it, adding or
+ * deleting furniture and starting a new project.
  */
-export function PlanControls({ viewport }: { viewport: Size }) {
+export function PlanControls({
+  viewport,
+  onNewProject,
+}: {
+  viewport: Size
+  /** Drop the plan and everything on it, once the user has confirmed. */
+  onNewProject: () => void
+}) {
   const hasPlan = usePlanStore((s) => s.plan !== null)
   const pendingPlan = usePlanStore((s) => s.pendingPlan)
   const measuring = usePlanStore((s) => s.tape !== null)
   const selected = usePlanStore((s) => s.selectedId !== null)
   const [error, setError] = useState<string | null>(null)
+  const [confirmingNew, setConfirmingNew] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
   // Decoding is async; only the most recently chosen file may win
   const latestLoad = useRef(0)
@@ -44,8 +53,8 @@ export function PlanControls({ viewport }: { viewport: Size }) {
     }
   }
 
-  // No new plans while the replace prompt is open
-  const dragging = useFileDrop(openFile, !pendingPlan)
+  // No new plans while a prompt is open
+  const dragging = useFileDrop(openFile, !pendingPlan && !confirmingNew)
 
   return (
     <>
@@ -58,6 +67,16 @@ export function PlanControls({ viewport }: { viewport: Size }) {
         >
           Open plan…
         </button>
+        {hasPlan && (
+          <button
+            type="button"
+            className="button"
+            onMouseDown={keepFocusOffToolbar}
+            onClick={() => setConfirmingNew(true)}
+          >
+            New project
+          </button>
+        )}
         {hasPlan && (
           <button
             type="button"
@@ -116,52 +135,32 @@ export function PlanControls({ viewport }: { viewport: Size }) {
       {dragging && <div className="drop-overlay">Drop to open the plan</div>}
 
       {pendingPlan && (
-        <ReplacePlanDialog
-          name={pendingPlan.name}
+        <ConfirmDialog
+          title="Replace the current plan?"
+          confirmLabel="Replace"
           onConfirm={() => planStore.getState().confirmReplace(viewport)}
           onCancel={() => planStore.getState().cancelReplace()}
-        />
+        >
+          The current plan will be replaced by {pendingPlan.name}.
+        </ConfirmDialog>
+      )}
+
+      {confirmingNew && (
+        <ConfirmDialog
+          title="Start a new project?"
+          confirmLabel="Start new project"
+          onConfirm={() => {
+            setConfirmingNew(false)
+            setError(null)
+            latestLoad.current++ // a plan still decoding belongs to the old project
+            onNewProject()
+          }}
+          onCancel={() => setConfirmingNew(false)}
+        >
+          The plan, its scale and all furniture will be removed. This cannot be
+          undone.
+        </ConfirmDialog>
       )}
     </>
-  )
-}
-
-function ReplacePlanDialog({
-  name,
-  onConfirm,
-  onCancel,
-}: {
-  name: string
-  onConfirm: () => void
-  onCancel: () => void
-}) {
-  useEffect(() => {
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onCancel()
-    }
-    window.addEventListener('keydown', onKeyDown)
-    return () => window.removeEventListener('keydown', onKeyDown)
-  }, [onCancel])
-
-  return (
-    <div className="backdrop">
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="replace-plan-title"
-        className="dialog"
-      >
-        <h2 id="replace-plan-title">Replace the current plan?</h2>
-        <p>The current plan will be replaced by {name}.</p>
-        <div className="dialog-actions">
-          <button type="button" className="button" autoFocus onClick={onCancel}>
-            Cancel
-          </button>
-          <button type="button" className="button primary" onClick={onConfirm}>
-            Replace
-          </button>
-        </div>
-      </div>
-    </div>
   )
 }

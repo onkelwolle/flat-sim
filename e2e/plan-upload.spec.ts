@@ -13,6 +13,8 @@ test.use({ viewport: { width: 1280, height: 720 } })
 
 test.beforeEach(async ({ page }) => {
   await page.goto('./')
+  // The controls appear once the saved project (here: none) has been restored
+  await expect(page.getByRole('button', { name: 'Open plan…' })).toBeVisible()
 })
 
 test('opens a plan from the file picker, fitted to the viewport', async ({
@@ -36,10 +38,12 @@ test('opens a plan dropped onto the page', async ({ page }) => {
 })
 
 test('opens the file picker from the keyboard', async ({ page }) => {
+  // Listen early: Playwright intercepts file choosers only once it has had
+  // time to set that up, and a picker opened before then goes unseen
+  const chooser = page.waitForEvent('filechooser')
   await page.keyboard.press('Tab')
   await expect(page.getByRole('button', { name: 'Open plan…' })).toBeFocused()
 
-  const chooser = page.waitForEvent('filechooser')
   await page.keyboard.press('Enter')
   await (await chooser).setFiles(widePlan.pathname)
 

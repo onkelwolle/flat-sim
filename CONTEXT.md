@@ -24,3 +24,10 @@ A line drawn along a wall of known length, plus that real length, which together
 
 **Calibrate tool**:
 The tool for drawing a **Calibration**: click both ends of a wall on the plan, then enter its real length in cm or m.
+
+**Measuring tape**:
+The tool for measuring the real distance between two points on the **Plan**: click, click or click-drag between them; holding Shift snaps the line to horizontal, vertical or 45°. Available only once the **Scale** is set. One tool is active at a time: starting the measuring tape leaves the **Calibrate tool**, and the other way round.
+_Avoid_: ruler, measure tool
+
+**Measurement**:
+A straight line between two points on the **Plan**, in **Plan pixels**, shown with its real length (whole cm below a metre, else metres to two decimals). For now a measurement lasts only while the **Measuring tape** is active; leaving the tool drops it.

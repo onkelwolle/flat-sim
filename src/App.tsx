@@ -2,8 +2,10 @@ import type Konva from 'konva'
 import { useRef, useState } from 'react'
 import { Image, Layer, Stage } from 'react-konva'
 import { CalibrationLayer } from './plan/CalibrationLayer'
+import { MeasuringTapeLayer } from './plan/MeasuringTapeLayer'
 import { PlanControls } from './plan/PlanControls'
 import { planStore, usePlanStore } from './plan/planStore'
+import { useMeasuringTape } from './plan/useMeasuringTape'
 import { useViewNavigation } from './plan/useViewNavigation'
 import type { Point } from './plan/zoomView'
 import { useViewportSize } from './useViewportSize'
@@ -13,9 +15,11 @@ function App() {
   const plan = usePlanStore((s) => s.plan)
   const view = usePlanStore((s) => s.view)
   const calibrating = usePlanStore((s) => s.calibrationDraft !== null)
+  const measuring = usePlanStore((s) => s.tape !== null)
   const stageRef = useRef<Konva.Stage>(null)
-  // Pointer in plan pixels, tracked only while a tool needs it
+  // Pointer in plan pixels, tracked only while the calibrate tool needs it
   const [pointer, setPointer] = useState<Point | null>(null)
+  const tape = useMeasuringTape(stageRef)
 
   const pointerOnPlan = () =>
     stageRef.current?.getRelativePointerPosition() ?? null
@@ -28,7 +32,9 @@ function App() {
           const at = pointerOnPlan()
           if (at) planStore.getState().placeCalibrationPoint(at)
         }
-      : undefined,
+      : measuring
+        ? tape.onCanvasPress
+        : undefined,
   )
 
   return (
@@ -36,10 +42,15 @@ function App() {
       <Stage
         ref={stageRef}
         {...navigation}
-        onPointerMove={() => setPointer(calibrating ? pointerOnPlan() : null)}
+        onPointerMove={(e) => {
+          setPointer(calibrating ? pointerOnPlan() : null)
+          tape.onPointerMove(e.evt)
+        }}
+        onPointerUp={(e) => tape.onPointerUp(e.evt)}
         style={{
           cursor:
-            navigation.style.cursor ?? (calibrating ? 'crosshair' : undefined),
+            navigation.style.cursor ??
+            (calibrating || measuring ? 'crosshair' : undefined),
         }}
         width={viewport.width}
         height={viewport.height}
@@ -52,6 +63,7 @@ function App() {
         {/* Bottom layer: the plan image, in its own pixel coordinates */}
         <Layer listening={false}>{plan && <Image image={plan.image} />}</Layer>
         {plan && <CalibrationLayer pointer={pointer} />}
+        {plan && <MeasuringTapeLayer />}
       </Stage>
       <PlanControls viewport={viewport} />
     </>

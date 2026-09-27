@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type MouseEvent } from 'react'
 import type { Size } from '../useViewportSize'
 import { CalibrateButton, CalibrationStatus } from './CalibrationControls'
+import { MeasureButton, MeasuringTapeStatus } from './MeasuringTapeControls'
 import { loadPlanFile, PLAN_FILE_TYPES } from './loadPlanFile'
 import { planStore, usePlanStore } from './planStore'
 import { useFileDrop } from './useFileDrop'
@@ -11,11 +12,12 @@ const keepFocusOffToolbar = (e: MouseEvent) => e.preventDefault()
 
 /**
  * HTML overlay for opening a plan (file picker, drop target, replace prompt),
- * fitting it to the screen and calibrating its scale.
+ * fitting it to the screen, calibrating its scale and measuring it.
  */
 export function PlanControls({ viewport }: { viewport: Size }) {
   const hasPlan = usePlanStore((s) => s.plan !== null)
   const pendingPlan = usePlanStore((s) => s.pendingPlan)
+  const measuring = usePlanStore((s) => s.tape !== null)
   const [error, setError] = useState<string | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   // Decoding is async; only the most recently chosen file may win
@@ -59,6 +61,7 @@ export function PlanControls({ viewport }: { viewport: Size }) {
           </button>
         )}
         {hasPlan && <CalibrateButton onMouseDown={keepFocusOffToolbar} />}
+        {hasPlan && <MeasureButton onMouseDown={keepFocusOffToolbar} />}
         <input
           ref={inputRef}
           type="file"
@@ -83,7 +86,7 @@ export function PlanControls({ viewport }: { viewport: Size }) {
         </p>
       )}
 
-      {hasPlan && <CalibrationStatus />}
+      {hasPlan && (measuring ? <MeasuringTapeStatus /> : <CalibrationStatus />)}
 
       {dragging && <div className="drop-overlay">Drop to open the plan</div>}
 

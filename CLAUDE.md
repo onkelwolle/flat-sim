@@ -1,3 +1,18 @@
+# flat-sim
+
+Browser app for planning furniture placement on a scaled floor plan. Stack and rationale: `docs/adr/0001-browser-only-typescript-react-konva.md`.
+
+## Commands
+
+Toolchain (Node, pnpm) is pinned in `mise.toml`; run `mise install` first.
+
+- `pnpm dev`: dev server at http://localhost:5173/flat-sim/
+- `pnpm typecheck`, `pnpm lint` (oxlint), `pnpm format:check` / `pnpm format` (Prettier)
+- `pnpm test`: Vitest unit tests (`src/**/*.test.ts`)
+- `pnpm test:e2e`: Playwright against a production build (`e2e/`); needs `pnpm exec playwright install chromium` once
+
+CI (`.github/workflows/ci.yml`) runs all of the above on PRs and `main`; `deploy.yml` publishes `main` to GitHub Pages.
+
 ## Agent skills
 
 ### Issue tracker

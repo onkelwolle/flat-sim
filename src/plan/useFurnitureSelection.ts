@@ -1,5 +1,6 @@
 import type { KonvaEventObject } from 'konva/lib/Node'
 import { useEffect, useRef } from 'react'
+import { isDialogOpen } from '../dialogs'
 import { distance, type NudgeDirection } from './geometry'
 import { planStore } from './planStore'
 import { isControl } from './useViewNavigation'
@@ -42,7 +43,7 @@ export function useFurnitureSelection(): FurnitureSelectionHandlers {
       const direction = NUDGE_KEYS[e.key]
       if (!deleting && !direction) return
       if (isControl(e.target)) return
-      if (document.querySelector('[aria-modal="true"]')) return
+      if (isDialogOpen()) return
       const store = planStore.getState()
       if (!store.selectedId) return
       e.preventDefault() // no scrolling or going back

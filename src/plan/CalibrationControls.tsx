@@ -1,4 +1,5 @@
 import { useEffect, useState, type MouseEvent } from 'react'
+import { isDialogOpen, useModalDialog } from '../dialogs'
 import { planStore, selectScale, usePlanStore } from './planStore'
 import { parseLength, type LengthUnit } from './scale'
 
@@ -39,7 +40,8 @@ export function CalibrationStatus() {
   useEffect(() => {
     if (!draft) return
     const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') planStore.getState().cancelCalibration()
+      if (e.key === 'Escape' && !isDialogOpen())
+        planStore.getState().cancelCalibration()
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
@@ -80,6 +82,7 @@ function LengthDialog({
   const [text, setText] = useState('')
   const [unit, setUnit] = useState<LengthUnit>('m')
   const [invalid, setInvalid] = useState(false)
+  useModalDialog(onCancel)
 
   return (
     <div className="backdrop">

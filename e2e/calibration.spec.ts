@@ -124,3 +124,19 @@ test('a new plan starts without a scale', async ({ page }) => {
 
   await expect(status(page)).toHaveText(/Scale not set/)
 })
+
+test('Esc in a dialog closes only the dialog, keeping the calibrate tool', async ({
+  page,
+}) => {
+  await page.getByRole('button', { name: 'Calibrate scale' }).click()
+  await page.mouse.click(320, 360)
+  await expect(status(page)).toHaveText(/Click the other end/)
+
+  await pickFile(page, tallPlan)
+  const dialog = page.getByRole('dialog', { name: 'Replace the current plan?' })
+  await expect(dialog).toBeVisible()
+  await page.keyboard.press('Escape')
+
+  await expect(dialog).toBeHidden()
+  await expect(status(page)).toHaveText(/Click the other end/)
+})

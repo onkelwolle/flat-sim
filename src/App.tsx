@@ -33,7 +33,11 @@ function App() {
   const pointerOnPlan = () =>
     stageRef.current?.getRelativePointerPosition() ?? null
 
-  const { stageProps: navigation, panning } = useViewNavigation(
+  const {
+    stageProps: navigation,
+    panning,
+    pinching,
+  } = useViewNavigation(
     stageRef,
     viewport,
     calibrating
@@ -44,6 +48,12 @@ function App() {
       : measuring
         ? tape.onCanvasPress
         : undefined,
+    // A second finger cancels what the first was doing; calibration points
+    // already placed stay
+    () => {
+      selection.cancelPress()
+      tape.cancelMeasurement()
+    },
   )
 
   return (
@@ -57,15 +67,17 @@ function App() {
         }}
         onPointerMove={(e) => {
           // Panning moves the pointer with the plan: line ends stay put
-          if (panning) return
+          if (panning || pinching) return
           setPointer(calibrating ? pointerOnPlan() : null)
           tape.onPointerMove(e.evt)
         }}
         onPointerUp={(e) => {
+          if (pinching) return
           selection.onPointerUp(e)
           tape.onPointerUp(e.evt)
         }}
         style={{
+          ...navigation.style,
           cursor:
             navigation.style.cursor ??
             (calibrating || measuring
@@ -85,7 +97,9 @@ function App() {
         {/* Bottom layer: the plan image, in its own pixel coordinates */}
         <Layer listening={false}>{plan && <Image image={plan.image} />}</Layer>
         {/* Furniture sits on the plan, under the tools' lines */}
-        {plan && <FurnitureLayer onHoverChange={setOverItem} />}
+        {plan && (
+          <FurnitureLayer onHoverChange={setOverItem} interrupted={pinching} />
+        )}
         {plan && <CalibrationLayer pointer={pointer} />}
         {plan && <MeasuringTapeLayer />}
       </Stage>

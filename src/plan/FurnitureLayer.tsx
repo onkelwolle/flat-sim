@@ -1,6 +1,6 @@
 import type Konva from 'konva'
 import type { KonvaEventObject } from 'konva/lib/Node'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type RefObject } from 'react'
 import { Group, Layer, Rect, Text, Transformer } from 'react-konva'
 import { useShallow } from 'zustand/react/shallow'
 import { labelFlipped, ROTATION_STEP, snapRotation } from './geometry'
@@ -24,6 +24,11 @@ const ROTATION_SNAPS = Array.from(
 type FurnitureLayerProps = {
   /** Called when the pointer starts or stops hovering over an item. */
   onHoverChange: (hovering: boolean) => void
+  /**
+   * Whether a two-finger gesture is under way: it cancels any drag or turn,
+   * which snaps back and records no step, and starts none until it ends.
+   */
+  interrupted: boolean
 }
 
 /**
@@ -32,7 +37,10 @@ type FurnitureLayerProps = {
  * selected item has a handle to rotate it, snapping to 15° steps unless Shift
  * is held. Items only take the pointer while no tool is active.
  */
-export function FurnitureLayer({ onHoverChange }: FurnitureLayerProps) {
+export function FurnitureLayer({
+  onHoverChange,
+  interrupted,
+}: FurnitureLayerProps) {
   const furniture = usePlanStore((s) => s.furniture)
   const selectedId = usePlanStore((s) => s.selectedId)
   const zoom = usePlanStore((s) => s.view.scale)
@@ -41,6 +49,19 @@ export function FurnitureLayer({ onHoverChange }: FurnitureLayerProps) {
   )
   const transformerRef = useRef<Konva.Transformer>(null)
   const shiftHeld = useShiftHeld()
+  const interruptedRef = useRef(interrupted)
+
+  useEffect(() => {
+    interruptedRef.current = interrupted
+    if (!interrupted) return
+    const transformer = transformerRef.current
+    transformer?.stopTransform()
+    // Ending a drag or turn now snaps it back (see the end handlers)
+    transformer
+      ?.getLayer()
+      ?.getChildren((node) => node.isDragging())
+      .forEach((node) => node.stopDrag())
+  }, [interrupted])
 
   // Attach the rotate handle to the selected item, and refit it whenever an
   // item's size or the zoom changes
@@ -65,6 +86,7 @@ export function FurnitureLayer({ onHoverChange }: FurnitureLayerProps) {
           item={item}
           zoom={zoom}
           onHoverChange={onHoverChange}
+          interruptedRef={interruptedRef}
         />
       ))}
       <Transformer
@@ -76,10 +98,19 @@ export function FurnitureLayer({ onHoverChange }: FurnitureLayerProps) {
         // Konva snaps while dragging; every angle is within half a step of one
         rotationSnaps={shiftHeld ? [] : ROTATION_SNAPS}
         rotationSnapTolerance={ROTATION_STEP / 2}
+        onTransformStart={() => {
+          if (interruptedRef.current) transformerRef.current?.stopTransform()
+        }}
         onTransformEnd={(e) => {
           const node = e.target
           // Rotation only: undo any float noise in scale the transform left
           node.scale({ x: 1, y: 1 })
+          if (interruptedRef.current) {
+            // Snap back to the stored angle
+            const item = furniture.find((f) => f.id === node.id())
+            if (item) node.rotation(item.rotationDeg)
+            return
+          }
           const deg = snapRotation(
             node.rotation(),
             shiftHeld ? null : ROTATION_STEP,
@@ -97,10 +128,12 @@ function FurnitureItem({
   item,
   zoom,
   onHoverChange,
+  interruptedRef,
 }: {
   item: Furniture
   zoom: number
   onHoverChange: (hovering: boolean) => void
+  interruptedRef: RefObject<boolean>
 }) {
   const size = usePlanStore(useShallow((s) => selectFurnitureSizePx(s, item)))
   const selected = usePlanStore((s) => s.selectedId === item.id)
@@ -108,6 +141,10 @@ function FurnitureItem({
   const { width, height } = size
 
   const onDragEnd = (e: KonvaEventObject<DragEvent>) => {
+    if (interruptedRef.current) {
+      e.target.position(item.position)
+      return
+    }
     const { x, y } = e.target.position()
     planStore.getState().moveFurniture(item.id, { x, y })
   }
@@ -120,7 +157,12 @@ function FurnitureItem({
       rotation={item.rotationDeg}
       draggable
       onPointerDown={(e) => {
-        if (e.evt.button === 0) planStore.getState().selectFurniture(item.id)
+        // A second finger is a pinch, never a press on the item under it
+        if (e.evt.button === 0 && e.evt.isPrimary)
+          planStore.getState().selectFurniture(item.id)
+      }}
+      onDragStart={(e) => {
+        if (interruptedRef.current) e.target.stopDrag()
       }}
       onDragEnd={onDragEnd}
       onPointerEnter={() => onHoverChange(true)}

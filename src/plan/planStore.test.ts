@@ -356,6 +356,31 @@ describe('measuring with the tape', () => {
     expect(store.getState().tape?.measurement).toBeNull()
   })
 
+  it('drops a measurement being drawn but keeps the tape active', () => {
+    const store = calibrated()
+    store.getState().startMeasuring()
+    store.getState().startMeasurementAt({ x: 100, y: 100 })
+    store.getState().stretchMeasurementTo({ x: 200, y: 100 })
+
+    store.getState().dropMeasurementInProgress()
+
+    expect(store.getState().tape).toEqual({
+      measurement: null,
+      stretching: false,
+    })
+  })
+
+  it('keeps a finished measurement when none is being drawn', () => {
+    const store = calibrated()
+    store.getState().startMeasuring()
+    store.getState().startMeasurementAt({ x: 100, y: 100 })
+    store.getState().finishMeasurementAt({ x: 200, y: 100 })
+
+    store.getState().dropMeasurementInProgress()
+
+    expect(measured(store)).toBe(200)
+  })
+
   it('cannot measure until the scale is set', () => {
     const store = createPlanStore()
     store.getState().offerPlan(plan('flat.png'), viewport)

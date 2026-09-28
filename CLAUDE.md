@@ -9,7 +9,7 @@ Toolchain (Node, pnpm, gitleaks) is pinned in `mise.toml`; run `mise install` fi
 - `pnpm dev`: dev server at http://localhost:5173/flat-sim/
 - `pnpm typecheck`, `pnpm lint` (oxlint), `pnpm format:check` / `pnpm format` (Prettier)
 - `pnpm test`: Vitest unit tests (`src/**/*.test.ts`)
-- `pnpm test:e2e`: Playwright against a production build (`e2e/`); needs `pnpm exec playwright install chromium` once
+- `pnpm test:e2e`: Playwright against a production build (`e2e/`); needs `pnpm exec playwright install chromium` once. Touch specs live in `e2e/touch/` and run only in the touch-emulated `tablet` project (multi-finger gestures via `e2e/touch/fingers.ts`)
 
 CI (`.github/workflows/ci.yml`) runs all of the above on PRs and `main`; `deploy.yml` publishes `main` to https://onkelwolle.github.io/flat-sim/.
 

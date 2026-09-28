@@ -3,11 +3,13 @@ import { readFileSync } from 'node:fs'
 import { expect, type Page } from '@playwright/test'
 
 // Fixtures: wide-plan.png is 400×200, left half red, right half blue;
-// tall-plan.jpg is 100×400 solid green.
+// tall-plan.jpg is 100×400 solid green; sample-flat.png is a 1280×720 floor
+// plan at 100 px per metre (see sampleFlat.ts).
 export const fixture = (name: string) =>
   new URL(`fixtures/${name}`, import.meta.url)
 export const widePlan = fixture('wide-plan.png')
 export const tallPlan = fixture('tall-plan.jpg')
+export const sampleFlat = fixture('sample-flat.png')
 
 type Rgba = [number, number, number, number]
 type Colour = 'red' | 'green' | 'blue' | 'none'

@@ -1,6 +1,23 @@
+import { createServer } from 'node:net'
 import { defineConfig, devices } from '@playwright/test'
 
-const port = 4173
+/** A port nothing is listening on right now. */
+const freePort = () =>
+  new Promise<number>((resolve, reject) => {
+    const server = createServer()
+    server.unref()
+    server.on('error', reject)
+    server.listen(0, () => {
+      const { port } = server.address() as { port: number }
+      server.close(() => resolve(port))
+    })
+  })
+
+// Each run serves its own build on its own port, so parallel runs (e.g. from
+// two worktrees) never test each other's build. Workers load this config too:
+// they inherit the port through the environment instead of picking another.
+process.env.E2E_PORT ??= String(await freePort())
+const port = Number(process.env.E2E_PORT)
 const baseURL = `http://localhost:${port}/flat-sim/`
 
 export default defineConfig({
@@ -33,6 +50,6 @@ export default defineConfig({
   webServer: {
     command: `vite build && vite preview --port ${port} --strictPort`,
     url: baseURL,
-    reuseExistingServer: !process.env.CI,
+    reuseExistingServer: false,
   },
 })

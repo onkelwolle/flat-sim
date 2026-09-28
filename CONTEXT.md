@@ -44,4 +44,4 @@ _Avoid_: object, shape, piece
 All the **Items** placed on the **Plan**.
 
 **Selection**:
-The one **Item** currently being worked on, or none. Adding an item selects it; clicking an item selects it; clicking empty canvas (without panning) selects none. Delete removes the selected item. Selection and tools exclude each other: starting the **Calibrate tool** or **Measuring tape** clears the selection, and selecting an item leaves the active tool.
+The one **Item** currently being worked on, or none. Adding an item selects it; clicking an item selects it; clicking empty canvas (without panning) or pressing Esc selects none. Delete removes the selected item. Selection and tools exclude each other: starting the **Calibrate tool** or **Measuring tape** clears the selection, and selecting an item leaves the active tool.

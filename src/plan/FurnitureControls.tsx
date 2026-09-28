@@ -256,6 +256,12 @@ const parseName = (text: string) => text.trim() || null
 
 type Field = 'name' | 'width' | 'depth'
 
+/**
+ * What the Add furniture form last added, to open with next time. Kept in
+ * memory for the session only: a reload starts with an empty form.
+ */
+let lastAdded: Record<Field, string> = { name: '', width: '', depth: '' }
+
 function AddFurnitureDialog({
   onSubmit,
   onCancel,
@@ -263,11 +269,7 @@ function AddFurnitureDialog({
   onSubmit: (spec: FurnitureSpec) => void
   onCancel: () => void
 }) {
-  const [text, setText] = useState<Record<Field, string>>({
-    name: '',
-    width: '',
-    depth: '',
-  })
+  const [text, setText] = useState(lastAdded)
   const [error, setError] = useState<{ field: Field; message: string }>()
 
   useModalDialog(onCancel)
@@ -282,6 +284,8 @@ function AddFurnitureDialog({
         autoFocus={field === 'name'}
         value={text[field]}
         aria-invalid={error?.field === field}
+        // Selected whole, so typing replaces a remembered value
+        onFocus={(e) => e.currentTarget.select()}
         onChange={(e) => {
           setText({ ...text, [field]: e.currentTarget.value })
           setError(undefined)
@@ -307,6 +311,11 @@ function AddFurnitureDialog({
             return setError({ field: 'width', message: SIZE_ERROR })
           if (depthCm === null)
             return setError({ field: 'depth', message: SIZE_ERROR })
+          lastAdded = {
+            name,
+            width: String(widthCm),
+            depth: String(depthCm),
+          }
           onSubmit({ name, widthCm, depthCm })
         }}
       >

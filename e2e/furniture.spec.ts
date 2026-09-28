@@ -123,6 +123,50 @@ test.describe('once calibrated', () => {
     await expectFurnitureAt(page, 640, 360, false)
   })
 
+  test('the form opens with the last values added, selected for typing over', async ({
+    page,
+  }) => {
+    await addButton(page).click()
+    const form = formDialog(page)
+    await expect(form.getByLabel('Name')).toHaveValue('')
+    await form.getByRole('button', { name: 'Cancel' }).click()
+
+    await addFurniture(page, 'Chair', '45', '50')
+
+    await addButton(page).click()
+    await expect(form.getByLabel('Name')).toHaveValue('Chair')
+    await expect(form.getByLabel('Width (cm)')).toHaveValue('45')
+    await expect(form.getByLabel('Depth (cm)')).toHaveValue('50')
+
+    // The first field is focused with its text selected, as is each field
+    // tabbed to or clicked, so typing replaces the old value
+    await expect(form.getByLabel('Name')).toBeFocused()
+    await page.keyboard.type('Stool')
+    await page.keyboard.press('Tab')
+    await page.keyboard.type('40')
+    await page.keyboard.press('Tab')
+    await page.keyboard.type('40')
+    await form.getByLabel('Width (cm)').click()
+    await page.keyboard.type('60')
+    await expect(form.getByLabel('Name')).toHaveValue('Stool')
+    await expect(form.getByLabel('Width (cm)')).toHaveValue('60')
+    await expect(form.getByLabel('Depth (cm)')).toHaveValue('40')
+
+    // Cancelling keeps the values last added
+    await form.getByRole('button', { name: 'Cancel' }).click()
+    await addButton(page).click()
+    await expect(form.getByLabel('Name')).toHaveValue('Chair')
+    await form.getByRole('button', { name: 'Cancel' }).click()
+
+    // A reload starts empty again
+    await page.reload()
+    await pickFile(page, widePlan)
+    await expectWidePlanFitted(page)
+    await calibrate(page, '4')
+    await addButton(page).click()
+    await expect(form.getByLabel('Name')).toHaveValue('')
+  })
+
   test('clicking selects an item; clicking empty canvas deselects it', async ({
     page,
   }) => {

@@ -1,4 +1,5 @@
 import { useEffect, useState, type MouseEvent } from 'react'
+import { DialogBackdrop } from '../DialogBackdrop'
 import { isDialogOpen, useModalDialog } from '../dialogs'
 import { planStore, selectScale, usePlanStore } from './planStore'
 import { parseLength, type LengthUnit } from './scale'
@@ -90,7 +91,7 @@ function LengthDialog({
   useModalDialog(onCancel)
 
   return (
-    <div className="backdrop">
+    <DialogBackdrop>
       <form
         role="dialog"
         aria-modal="true"
@@ -147,6 +148,6 @@ function LengthDialog({
           </button>
         </div>
       </form>
-    </div>
+    </DialogBackdrop>
   )
 }

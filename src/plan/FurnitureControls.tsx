@@ -1,4 +1,4 @@
-import { useState, type MouseEvent } from 'react'
+import { useState, type CSSProperties, type MouseEvent } from 'react'
 import { useModalDialog } from '../dialogs'
 import type { Size } from '../useViewportSize'
 import {
@@ -86,20 +86,27 @@ export function FurnitureStatus() {
 
 /**
  * Side panel for the selected item, editing its name, its size in cm and its
- * rotation in degrees. Shown only while an item is selected.
+ * rotation in degrees. Shown only while an item is selected, below the screen
+ * position `below` (the toolbar's bottom edge).
  */
-export function FurniturePanel() {
+export function FurniturePanel({ below }: { below: number }) {
   const item = usePlanStore((s) =>
     s.furniture.find((f) => f.id === s.selectedId),
   )
   if (!item) return null
   // A fresh form for each item, so edits never carry over to another
-  return <FurniturePanelForm key={item.id} item={item} />
+  return <FurniturePanelForm key={item.id} item={item} below={below} />
 }
 
 type PanelField = 'name' | 'width' | 'depth' | 'rotation'
 
-function FurniturePanelForm({ item }: { item: Furniture }) {
+function FurniturePanelForm({
+  item,
+  below,
+}: {
+  item: Furniture
+  below: number
+}) {
   const [error, setError] = useState<{ field: PanelField; message: string }>()
   const store = planStore.getState()
 
@@ -133,7 +140,11 @@ function FurniturePanelForm({ item }: { item: Furniture }) {
   }
 
   return (
-    <aside className="panel" aria-label="Selected item">
+    <aside
+      className="panel"
+      aria-label="Selected item"
+      style={{ '--below': `${below}px` } as CSSProperties}
+    >
       <h2>{item.name}</h2>
       <div className="panel-fields">
         <div className="panel-wide">

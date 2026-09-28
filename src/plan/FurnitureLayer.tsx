@@ -3,6 +3,7 @@ import type { KonvaEventObject } from 'konva/lib/Node'
 import { useEffect, useRef, useState, type RefObject } from 'react'
 import { Group, Layer, Rect, Text, Transformer } from 'react-konva'
 import { useShallow } from 'zustand/react/shallow'
+import { useCoarsePointer } from '../useMediaQuery'
 import { labelFlipped, ROTATION_STEP, snapRotation } from './geometry'
 import {
   planStore,
@@ -14,6 +15,19 @@ import {
 const FILL = 'rgba(236, 201, 75, 0.6)'
 const STROKE = '#975a16'
 const SELECTED = '#2b6cb0'
+
+/**
+ * The rotate handle for fingers: bigger, further from the item so the finger
+ * turning it hides less of it, and taking a touch anywhere in a 44 px square
+ * (its size plus a hit stroke half as wide again on each side).
+ */
+const TOUCH_HANDLE = {
+  anchorSize: 20,
+  rotateAnchorOffset: 60,
+  anchorStyleFunc: (anchor: Konva.Rect) => {
+    if (anchor.hasName('rotater')) anchor.hitStrokeWidth(44 - 20)
+  },
+}
 
 /** Every multiple of the rotation step in a full turn. */
 const ROTATION_SNAPS = Array.from(
@@ -49,6 +63,7 @@ export function FurnitureLayer({
   )
   const transformerRef = useRef<Konva.Transformer>(null)
   const shiftHeld = useShiftHeld()
+  const coarsePointer = useCoarsePointer()
   const interruptedRef = useRef(interrupted)
 
   useEffect(() => {
@@ -95,6 +110,7 @@ export function FurnitureLayer({
         ignoreStroke
         borderStroke={SELECTED}
         anchorStroke={SELECTED}
+        {...(coarsePointer && TOUCH_HANDLE)}
         // Konva snaps while dragging; every angle is within half a step of one
         rotationSnaps={shiftHeld ? [] : ROTATION_SNAPS}
         rotationSnapTolerance={ROTATION_STEP / 2}

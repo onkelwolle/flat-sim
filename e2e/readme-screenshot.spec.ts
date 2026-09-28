@@ -1,7 +1,7 @@
 // Furnishes the sample flat and, with UPDATE_SCREENSHOT=1, saves the README
 // screenshot: `pnpm screenshot`. Without it, this runs as an ordinary spec.
 import { expect, test, type Page } from '@playwright/test'
-import { pickFile, sampleFlat } from './plan.ts'
+import { canvasDrawn, pickFile, sampleFlat } from './plan.ts'
 import { DIMENSIONS, toPx } from './sampleFlat.ts'
 
 // The sample flat fits this viewport at 1×: screen coordinates are plan pixels
@@ -64,6 +64,8 @@ const place = async (page: Page, piece: Piece) => {
     await rotation.press('Enter')
   }
 
+  // Drawn, so the press below finds it
+  await canvasDrawn(page)
   await page.mouse.move(640, 360)
   await page.mouse.down()
   await page.mouse.move(...toPx(...piece.at), { steps: 5 })

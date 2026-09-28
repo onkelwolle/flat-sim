@@ -1,5 +1,6 @@
 import { expect, test, type Page } from '@playwright/test'
 import {
+  canvasDrawn,
   expectFurnitureAt,
   expectTallPlanFitted,
   expectWidePlanFitted,
@@ -41,6 +42,8 @@ const addSofa = async (page: Page) => {
   await form.getByLabel('Depth (cm)').fill('100')
   await form.getByRole('button', { name: 'Add', exact: true }).click()
   await expect(form).toBeHidden()
+  // Drawn, so a press on it finds it
+  await canvasDrawn(page)
 }
 
 /** Drag the sofa 100 px right and down. */

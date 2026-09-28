@@ -99,6 +99,20 @@ export const expectTallPlanFitted = async (page: Page) => {
   await expectPlanColour(page, 740, 360, 'none')
 }
 
+/**
+ * Wait until the canvas has drawn what the app last rendered. Konva draws on
+ * the next animation frame, and a press on the canvas finds the item under it
+ * in what was last drawn: pressing an item before it is drawn misses it (the
+ * press lands on the empty canvas and pans or deselects instead). Frames come
+ * late when the machine is busy, so wait for one before pressing an item that
+ * just appeared.
+ */
+export const canvasDrawn = (page: Page) =>
+  page.evaluate(
+    () =>
+      new Promise<void>((resolve) => requestAnimationFrame(() => resolve())),
+  )
+
 /** The furniture layer sits right above the plan. */
 const FURNITURE_LAYER = 1
 

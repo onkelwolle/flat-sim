@@ -196,7 +196,7 @@ test.describe('measuring tape', () => {
     await expect(status(page)).toHaveText(/^Distance: 4\.00 m\./)
   })
 
-  test('a second finger drops the measurement being drawn and the loupe', async ({
+  test('a second finger drops the measurement being dragged out and the loupe', async ({
     page,
   }) => {
     const touch = await fingers(page)

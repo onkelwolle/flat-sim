@@ -24,6 +24,10 @@ function App() {
   const view = usePlanStore((s) => s.view)
   const calibrating = usePlanStore((s) => s.calibrationDraft !== null)
   const measuring = usePlanStore((s) => s.tape !== null)
+  // The end of the measurement being drawn, snapped: the loupe shows it
+  const tapeEnd = usePlanStore((s) =>
+    s.tape?.stretching ? s.tape.measurement?.end : undefined,
+  )
   const stageRef = useRef<Konva.Stage>(null)
   // Pointer in plan pixels, tracked only while the calibrate tool needs it
   const [pointer, setPointer] = useState<Point | null>(null)
@@ -53,11 +57,11 @@ function App() {
     viewport,
     calibrating ? onCalibratePress : measuring ? tape.onCanvasPress : undefined,
     // A second finger cancels what the first was doing, placing nothing;
-    // calibration points already placed stay
+    // calibration points and measurement ends already placed stay
     () => {
       placing.cancel()
       selection.cancelPress()
-      tape.cancelMeasurement()
+      tape.cancelPress()
     },
   )
 
@@ -114,7 +118,11 @@ function App() {
         {plan && <MeasuringTapeLayer />}
       </Stage>
       {placing.press && (
-        <Loupe finger={placing.press.finger} pointer={pointer} />
+        <Loupe
+          finger={placing.press.finger}
+          placing={tapeEnd}
+          pointer={pointer}
+        />
       )}
       {/* Controls wait for the saved project, so the empty state never flashes */}
       {!project.restoring && (

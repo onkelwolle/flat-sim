@@ -6,6 +6,7 @@ import {
   parseRotation,
   snapRotation,
   snapToAngle,
+  snapToAngleNear,
 } from './geometry'
 
 describe('distance', () => {
@@ -38,6 +39,50 @@ describe('snapToAngle', () => {
 
   it('leaves an end on top of the start where it is', () => {
     expect(snapToAngle(from, from)).toEqual(from)
+  })
+})
+
+describe('snapToAngleNear', () => {
+  const from = { x: 100, y: 100 }
+
+  it('snaps a line within 5° of horizontal, vertical or 45° as Shift does', () => {
+    // 2.9° off horizontal
+    expect(snapToAngleNear(from, { x: 300, y: 110 })).toEqual({
+      x: 300,
+      y: 100,
+    })
+    // 2.3° off vertical, upwards
+    expect(snapToAngleNear(from, { x: 108, y: -100 })).toEqual({
+      x: 100,
+      y: -100,
+    })
+    // 3° off 45°
+    expect(snapToAngleNear(from, { x: 200, y: 190 })).toEqual({
+      x: 195,
+      y: 195,
+    })
+  })
+
+  it('leaves a line more than 5° off any of them where it is', () => {
+    // 5.7° off horizontal
+    expect(snapToAngleNear(from, { x: 300, y: 120 })).toEqual({
+      x: 300,
+      y: 120,
+    })
+    // 6.3° off 45°
+    expect(snapToAngleNear(from, { x: 200, y: 180 })).toEqual({
+      x: 200,
+      y: 180,
+    })
+    // Halfway between horizontal and 45°
+    expect(snapToAngleNear(from, { x: 300, y: 180 })).toEqual({
+      x: 300,
+      y: 180,
+    })
+  })
+
+  it('leaves an end on top of the start where it is', () => {
+    expect(snapToAngleNear(from, from)).toEqual(from)
   })
 })
 

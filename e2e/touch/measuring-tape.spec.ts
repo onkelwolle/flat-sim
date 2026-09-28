@@ -1,0 +1,158 @@
+import { expect, test, type Page } from '@playwright/test'
+import { pickFile, widePlan } from '../plan.ts'
+import { fingers } from './fingers.ts'
+
+// The wide plan (400×200 px, red left of x 200, blue right) is fitted to the
+// 1194×834 tablet at 2.985× with its top at y = 118.5: plan (x, y) is screen
+// (298.5 + (x - 100) × 2.985, 417 + (y - 100) × 2.985)
+const screen = (x: number, y: number): [number, number] => [
+  298.5 + (x - 100) * 2.985,
+  417 + (y - 100) * 2.985,
+]
+
+const status = (page: Page) => page.getByRole('status')
+const lengthDialog = (page: Page) =>
+  page.getByRole('dialog', { name: 'How long is this line?' })
+
+/** Whether the loupe shows red or blue plan at a point of its own. */
+const loupeColour = (page: Page, x: number, y: number) =>
+  page.evaluate(
+    ([x, y]) => {
+      const canvas = document.querySelector('[data-testid="loupe"] canvas')
+      if (!(canvas instanceof HTMLCanvasElement)) return null
+      const ratio = canvas.width / canvas.clientWidth
+      const [r, , b] = canvas
+        .getContext('2d')!
+        .getImageData(x * ratio, y * ratio, 1, 1).data
+      return r! > 200 && b! < 50 ? 'red' : b! > 200 && r! < 50 ? 'blue' : null
+    },
+    [x, y],
+  )
+
+test.beforeEach(async ({ page }) => {
+  await page.goto('./')
+  await pickFile(page, widePlan)
+  // 50 plan px per metre: plan (100, 100) to (300, 100) is 4 m
+  await page.getByRole('button', { name: 'Calibrate scale' }).click()
+  await page.touchscreen.tap(...screen(100, 100))
+  await page.touchscreen.tap(...screen(300, 100))
+  await lengthDialog(page).getByLabel('Length').fill('4')
+  await lengthDialog(page).getByRole('button', { name: 'Set scale' }).click()
+  await page.getByRole('button', { name: 'Measure' }).click()
+})
+
+test('a finger drawing a line within 5° of vertical snaps it, and the loupe shows the snapped end', async ({
+  page,
+}) => {
+  const touch = await fingers(page)
+
+  // Plan (197, 50) to (205, 150), 4.6° off vertical: snaps to (197, 150), 2 m
+  // (unsnapped it would be 100.3 plan px, 2.01 m)
+  const a = await touch.down(screen(197, 50))
+  await touch.move({ [a]: screen(205, 150) })
+  await expect(status(page)).toHaveText(/^Distance: 2\.00 m\./)
+  // The loupe (120 px, plan at 5.97× zoom) centres on the snapped end, 3 plan
+  // px left of the red/blue edge: 10 px right of its centre is still red
+  await expect.poll(() => loupeColour(page, 70, 60)).toBe('red')
+  await touch.up(a)
+
+  await expect(status(page)).toHaveText(
+    /^Distance: 2\.00 m\. Tap or click to measure again/,
+  )
+})
+
+test('a line more than 5° off stays where the finger lifts', async ({
+  page,
+}) => {
+  const touch = await fingers(page)
+
+  // Plan (100, 100) to (300, 125), 7.1° off horizontal: 201.6 plan px
+  const a = await touch.down(screen(100, 100))
+  await touch.move({ [a]: screen(300, 125) })
+  await touch.up(a)
+
+  await expect(status(page)).toHaveText(/^Distance: 4\.03 m\./)
+})
+
+test('tap, tap: the second end snaps where the finger lifts', async ({
+  page,
+}) => {
+  await page.touchscreen.tap(...screen(100, 100))
+  const touch = await fingers(page)
+
+  // Lifting at plan (300, 116), 4.6° off horizontal: snaps to (300, 100), 4 m
+  // (unsnapped it would be 200.6 plan px, 4.01 m)
+  const a = await touch.down(screen(260, 180))
+  await touch.move({ [a]: screen(300, 116) })
+  await touch.up(a)
+
+  await expect(status(page)).toHaveText(
+    /^Distance: 4\.00 m\. Tap or click to measure again/,
+  )
+})
+
+test('tap one end, pan with two fingers, tap the other end: measures', async ({
+  page,
+}) => {
+  await page.touchscreen.tap(...screen(100, 100))
+  const touch = await fingers(page)
+
+  // Panning the plan 50 px down; its first finger doesn't place the other end
+  const a = await touch.down([700, 600])
+  const b = await touch.down([900, 600])
+  await touch.move({ [a]: [700, 650], [b]: [900, 650] })
+  await touch.up(a)
+  await touch.up(b)
+  await expect(status(page)).toHaveText(
+    /^Distance: 0 cm\. Tap or click the other end/,
+  )
+  const [x, y] = screen(300, 100)
+  await page.touchscreen.tap(x, y + 50)
+
+  await expect(status(page)).toHaveText(
+    /^Distance: 4\.00 m\. Tap or click to measure again/,
+  )
+})
+
+test('the status bar says nothing of Shift or Esc without a mouse', async ({
+  page,
+}) => {
+  await expect(status(page)).toHaveText(
+    'Tap or click two points, or drag between them, to measure.',
+  )
+  await page.touchscreen.tap(...screen(100, 100))
+  await expect(status(page)).toHaveText(
+    'Distance: 0 cm. Tap or click the other end.',
+  )
+  await page.touchscreen.tap(...screen(300, 100))
+  await expect(status(page)).toHaveText(
+    'Distance: 4.00 m. Tap or click to measure again.',
+  )
+})
+
+test('a pen snaps too', async ({ page }) => {
+  const cdp = await page.context().newCDPSession(page)
+  const pen = (
+    type: 'mousePressed' | 'mouseMoved' | 'mouseReleased',
+    [x, y]: [number, number],
+  ) =>
+    cdp.send('Input.dispatchMouseEvent', {
+      type,
+      x,
+      y,
+      button: 'left',
+      buttons: type === 'mouseReleased' ? 0 : 1,
+      clickCount: 1,
+      pointerType: 'pen',
+    })
+
+  // Plan (100, 100) to (300, 116), 4.6° off horizontal: snaps to (300, 100)
+  await pen('mousePressed', screen(100, 100))
+  await pen('mouseMoved', screen(200, 108))
+  await pen('mouseMoved', screen(300, 116))
+  await pen('mouseReleased', screen(300, 116))
+
+  await expect(status(page)).toHaveText(
+    /^Distance: 4\.00 m\. Tap or click to measure again/,
+  )
+})

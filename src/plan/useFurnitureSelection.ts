@@ -27,10 +27,10 @@ type FurnitureSelectionHandlers = {
 }
 
 /**
- * Selection input for furniture: clicking empty canvas deselects, arrow keys
- * nudge the selected item (1 cm, or 10 cm with Shift), and Delete
- * (or Backspace) deletes the selected item unless the key is typed into a
- * control or a dialog is open. Items select themselves when pressed. Returns
+ * Selection input for furniture: clicking empty canvas or pressing Esc
+ * deselects, arrow keys nudge the selected item (1 cm, or 10 cm with Shift),
+ * and Delete (or Backspace) deletes the selected item; keys typed into a
+ * control or pressed while a dialog is open are left alone. Items select themselves when pressed. Returns
  * handlers for the Stage.
  */
 export function useFurnitureSelection(): FurnitureSelectionHandlers {
@@ -39,15 +39,17 @@ export function useFurnitureSelection(): FurnitureSelectionHandlers {
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
+      const deselecting = e.key === 'Escape'
       const deleting = e.key === 'Delete' || e.key === 'Backspace'
       const direction = NUDGE_KEYS[e.key]
-      if (!deleting && !direction) return
+      if (!deselecting && !deleting && !direction) return
       if (isControl(e.target)) return
       if (isDialogOpen()) return
       const store = planStore.getState()
       if (!store.selectedId) return
       e.preventDefault() // no scrolling or going back
-      if (direction)
+      if (deselecting) store.clearSelection()
+      else if (direction)
         store.nudgeSelectedFurniture(
           direction,
           e.shiftKey ? LARGE_NUDGE_CM : NUDGE_CM,

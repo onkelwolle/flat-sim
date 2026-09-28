@@ -147,6 +147,16 @@ test.describe('once calibrated', () => {
     await expectFurnitureAt(page, 545, 285)
   })
 
+  test('Esc deselects the selected item', async ({ page }) => {
+    await addFurniture(page, 'Sofa', '200', '100')
+
+    await page.keyboard.press('Escape')
+
+    await expect(status(page)).toHaveText('Scale: 1 m = 50 plan px')
+    await expect(deleteButton(page)).toBeHidden()
+    await expectFurnitureAt(page, 485, 285)
+  })
+
   test('the Delete key deletes the selected item', async ({ page }) => {
     await addFurniture(page, 'Sofa', '200', '100')
 
@@ -407,13 +417,14 @@ test.describe('the item panel', () => {
     await expect(panel(page).getByRole('alert')).toBeHidden()
   })
 
-  test('keys typed into the panel do not nudge or delete the item', async ({
+  test('keys typed into the panel do not nudge, delete or deselect the item', async ({
     page,
   }) => {
     const width = panel(page).getByLabel('Width (cm)')
     await width.press('Shift+ArrowLeft')
     await width.press('ArrowUp')
     await width.press('Backspace')
+    await width.press('Escape')
 
     await expectFurnitureAt(page, 485, 285)
     await expect(status(page)).toHaveText(/^Sofa selected\./)

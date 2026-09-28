@@ -42,11 +42,11 @@ export function MeasuringTapeStatus() {
 
   const message =
     lengthCm === null
-      ? 'Click or drag between two points to measure. Hold Shift to snap. Esc exits.'
+      ? 'Tap or click two points, or drag between them, to measure. Hold Shift to snap. Esc exits.'
       : `Distance: ${formatLength(lengthCm)}. ` +
         (stretching
-          ? 'Click the other end; hold Shift to snap. Esc exits.'
-          : 'Click to measure again. Esc exits.')
+          ? 'Tap or click the other end; hold Shift to snap. Esc exits.'
+          : 'Tap or click to measure again. Esc exits.')
 
   return (
     <p className="status" role="status">

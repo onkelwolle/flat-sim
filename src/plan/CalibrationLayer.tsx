@@ -9,12 +9,19 @@ const COLOUR = '#dd6b20'
  * The calibration line on the plan: the saved one with its real length, or,
  * while the calibrate tool is active, the line being drawn (rubber-banding to
  * `pointer` after the first click). Drawn in plan pixels; strokes and labels
- * keep a constant size on screen.
+ * keep a constant size on screen, at the view's zoom or the given `zoom`.
  */
-export function CalibrationLayer({ pointer }: { pointer: Point | null }) {
+export function CalibrationLayer({
+  pointer,
+  zoom: ownZoom,
+}: {
+  pointer: Point | null
+  zoom?: number
+}) {
   const calibration = usePlanStore((s) => s.calibration)
   const draft = usePlanStore((s) => s.calibrationDraft)
-  const zoom = usePlanStore((s) => s.view.scale)
+  const viewZoom = usePlanStore((s) => s.view.scale)
+  const zoom = ownZoom ?? viewZoom
 
   // Placed points, then the line: to the pointer while only one is placed
   const points: Point[] =

@@ -22,9 +22,9 @@ const calibrate = async (
   unit: 'cm' | 'm',
 ) => {
   await page.getByRole('button', { name: /calibrate/i }).click()
-  await expect(status(page)).toHaveText(/Click one end of a wall/)
+  await expect(status(page)).toHaveText(/^Tap or click one end of a wall/)
   await page.mouse.click(...from)
-  await expect(status(page)).toHaveText(/Click the other end/)
+  await expect(status(page)).toHaveText(/^Tap or click the other end/)
   await page.mouse.click(...to)
   const dialog = lengthDialog(page)
   await dialog.getByLabel('Length').fill(length)
@@ -130,7 +130,7 @@ test('Esc in a dialog closes only the dialog, keeping the calibrate tool', async
 }) => {
   await page.getByRole('button', { name: 'Calibrate scale' }).click()
   await page.mouse.click(320, 360)
-  await expect(status(page)).toHaveText(/Click the other end/)
+  await expect(status(page)).toHaveText(/^Tap or click the other end/)
 
   await pickFile(page, tallPlan)
   const dialog = page.getByRole('dialog', { name: 'Replace the current plan?' })
@@ -138,5 +138,18 @@ test('Esc in a dialog closes only the dialog, keeping the calibrate tool', async
   await page.keyboard.press('Escape')
 
   await expect(dialog).toBeHidden()
-  await expect(status(page)).toHaveText(/Click the other end/)
+  await expect(status(page)).toHaveText(/^Tap or click the other end/)
+})
+
+test('a mouse press places its point at once, with no loupe', async ({
+  page,
+}) => {
+  await page.getByRole('button', { name: 'Calibrate scale' }).click()
+  await page.mouse.move(320, 360)
+
+  await page.mouse.down()
+
+  await expect(status(page)).toHaveText(/^Tap or click the other end/)
+  await expect(page.getByTestId('loupe')).toBeHidden()
+  await page.mouse.up()
 })

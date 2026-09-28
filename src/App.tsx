@@ -3,11 +3,13 @@ import { useRef, useState } from 'react'
 import { Image, Layer, Stage } from 'react-konva'
 import { CalibrationLayer } from './plan/CalibrationLayer'
 import { FurnitureLayer } from './plan/FurnitureLayer'
+import { Loupe } from './plan/Loupe'
 import { MeasuringTapeLayer } from './plan/MeasuringTapeLayer'
 import { PlanControls } from './plan/PlanControls'
 import { planStore, usePlanStore } from './plan/planStore'
 import { useFurnitureSelection } from './plan/useFurnitureSelection'
 import { useMeasuringTape } from './plan/useMeasuringTape'
+import { usePlacingPress } from './plan/usePlacingPress'
 import { useUndoShortcuts } from './plan/useUndoShortcuts'
 import { useViewNavigation } from './plan/useViewNavigation'
 import { ProjectNoticeBanner } from './project/ProjectNoticeBanner'
@@ -25,13 +27,22 @@ function App() {
   const stageRef = useRef<Konva.Stage>(null)
   // Pointer in plan pixels, tracked only while the calibrate tool needs it
   const [pointer, setPointer] = useState<Point | null>(null)
-  const tape = useMeasuringTape(stageRef)
+  // A touch or pen press placing a point, shown in the loupe until it lifts
+  const placing = usePlacingPress(stageRef)
+  const tape = useMeasuringTape(stageRef, placing)
   const selection = useFurnitureSelection()
   useUndoShortcuts(viewport)
   const [overItem, setOverItem] = useState(false)
 
   const pointerOnPlan = () =>
     stageRef.current?.getRelativePointerPosition() ?? null
+
+  // A click places a calibration point at once; a finger or pen where it lifts
+  const onCalibratePress = (e: PointerEvent) => {
+    if (placing.begin(e)) return setPointer(pointerOnPlan())
+    const at = pointerOnPlan()
+    if (at) planStore.getState().placeCalibrationPoint(at)
+  }
 
   const {
     stageProps: navigation,
@@ -40,17 +51,11 @@ function App() {
   } = useViewNavigation(
     stageRef,
     viewport,
-    calibrating
-      ? () => {
-          const at = pointerOnPlan()
-          if (at) planStore.getState().placeCalibrationPoint(at)
-        }
-      : measuring
-        ? tape.onCanvasPress
-        : undefined,
-    // A second finger cancels what the first was doing; calibration points
-    // already placed stay
+    calibrating ? onCalibratePress : measuring ? tape.onCanvasPress : undefined,
+    // A second finger cancels what the first was doing, placing nothing;
+    // calibration points already placed stay
     () => {
+      placing.cancel()
       selection.cancelPress()
       tape.cancelMeasurement()
     },
@@ -68,12 +73,17 @@ function App() {
         onPointerMove={(e) => {
           // Panning moves the pointer with the plan: line ends stay put
           if (panning || pinching) return
+          placing.follow(e.evt)
           setPointer(calibrating ? pointerOnPlan() : null)
           tape.onPointerMove(e.evt)
         }}
         onPointerUp={(e) => {
           if (pinching) return
           selection.onPointerUp(e)
+          if (calibrating) {
+            const at = placing.lift(e.evt)?.at
+            if (at) planStore.getState().placeCalibrationPoint(at)
+          }
           tape.onPointerUp(e.evt)
         }}
         style={{
@@ -103,6 +113,9 @@ function App() {
         {plan && <CalibrationLayer pointer={pointer} />}
         {plan && <MeasuringTapeLayer />}
       </Stage>
+      {placing.press && (
+        <Loupe finger={placing.press.finger} pointer={pointer} />
+      )}
       {/* Controls wait for the saved project, so the empty state never flashes */}
       {!project.restoring && (
         <PlanControls viewport={viewport} onNewProject={project.newProject} />

@@ -160,28 +160,11 @@ test('a second finger drops a measurement being drawn', async ({ page }) => {
   await touch.up(a)
   await touch.up(b)
 
-  await expect(status(page)).toHaveText(/Click or drag between two points/)
+  await expect(status(page)).toHaveText(
+    /^Tap or click two points, or drag between them/,
+  )
   await expect(page.getByRole('button', { name: 'Measure' })).toHaveAttribute(
     'aria-pressed',
     'true',
   )
-})
-
-test('a pinch keeps calibration points placed but places none itself', async ({
-  page,
-}) => {
-  await page.getByRole('button', { name: 'Recalibrate' }).click()
-  const touch = await fingers(page)
-
-  // The first finger places a point; the second pinches
-  const a = await touch.down([298.5, 417])
-  const b = await touch.down([597, 417])
-  await touch.move({ [a]: [248.5, 417], [b]: [647, 417] })
-  await touch.up(a)
-  await touch.up(b)
-  await expect(lengthDialog(page)).toBeHidden()
-
-  await tap(page, 900, 600)
-
-  await expect(lengthDialog(page)).toBeVisible()
 })

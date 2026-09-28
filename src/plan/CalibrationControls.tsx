@@ -31,7 +31,7 @@ const formatScale = (pixelsPerMetre: number) =>
 
 /**
  * What the calibration needs from the user next: a prompt to set the scale,
- * where to click, or the scale once it is set; plus the length dialog.
+ * where to tap or click, or the scale once it is set; plus the length dialog.
  */
 export function CalibrationStatus() {
   const scale = usePlanStore(selectScale)
@@ -52,9 +52,9 @@ export function CalibrationStatus() {
       ? formatScale(scale.pixelsPerMetre)
       : 'Scale not set: calibrate it to measure the plan.'
     : draft.length === 0
-      ? 'Click one end of a wall whose length you know. Esc cancels.'
+      ? 'Tap or click one end of a wall whose length you know. Esc cancels.'
       : draft.length === 1
-        ? 'Click the other end of the wall. Esc cancels.'
+        ? 'Tap or click the other end of the wall. Esc cancels.'
         : 'Enter the real length of the line.'
 
   return (

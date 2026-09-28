@@ -9,7 +9,8 @@ flat-sim was built for mouse, keyboard and trackpad. Users also want to plan on 
 ## Decision
 
 - One responsive app, no separate touch or mobile build and no user-agent sniffing
-- Behaviour follows each event's `pointerType`: mouse and pen behave as before; touch gets its own handling where it differs
+- Behaviour follows each event's `pointerType`: mouse behaves as before; touch and pen share the handling that makes up for having no keyboard or hover and for covering the point (loupe, magnetic snapping); only fingers count towards two-finger gestures
+- Keyboard-only hints (Shift, Esc) show only when `(any-pointer: fine)` matches
 - Sizing follows the `(any-pointer: coarse)` media query, so a touch laptop with a mouse still gets touch-sized targets
 - Two fingers always pan and pinch-zoom the **View**, whatever tool is active or item is selected: the touch replacement for space+drag. A second finger cancels what the first was doing
 - The stage sets `touch-action: none`; the browser never zooms or scrolls the page from the canvas, and there is no double-tap zoom

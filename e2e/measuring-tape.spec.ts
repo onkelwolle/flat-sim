@@ -1,5 +1,12 @@
 import { expect, test, type Page } from '@playwright/test'
-import { expectWidePlanFitted, pickFile, tallPlan, widePlan } from './plan.ts'
+import {
+  expectLabelCentredAt,
+  expectWidePlanFitted,
+  MEASURING_TAPE_LAYER,
+  pickFile,
+  tallPlan,
+  widePlan,
+} from './plan.ts'
 
 test.use({ viewport: { width: 1280, height: 720 } })
 
@@ -130,6 +137,16 @@ test.describe('once calibrated', () => {
     await expect(status(page)).toHaveText(
       /^Distance: 2\.92 m\. Tap or click to/,
     )
+  })
+
+  test('the distance label is centred on the line', async ({ page }) => {
+    // Plan (200, 50) to (200, 150), vertical, with its midpoint at (640, 360)
+    await page.mouse.click(640, 200)
+    await page.mouse.click(640, 520)
+    await page.mouse.move(100, 600, { steps: 3 })
+    await expect(status(page)).toHaveText(/^Distance: 2\.00 m\./)
+
+    await expectLabelCentredAt(page, MEASURING_TAPE_LAYER, 640, 360)
   })
 
   test('without Shift a mouse never snaps, even close to horizontal', async ({

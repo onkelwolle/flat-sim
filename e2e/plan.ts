@@ -128,3 +128,79 @@ export const expectFurnitureAt = async (
       message: `furniture should ${drawn ? '' : 'not '}be drawn at (${x}, ${y})`,
     })
     .toBe(drawn)
+
+/** Layers above the plan and furniture, while each has something to draw. */
+export const CALIBRATION_LAYER = 2
+export const MEASURING_TAPE_LAYER = 3
+
+type Box = { left: number; top: number; right: number; bottom: number }
+
+/**
+ * Where a layer draws a line's length label, in viewport pixels: the bounds
+ * of its rows drawn wider than the line and its end handles, so the line
+ * must not run along a row (draw it steeply, e.g. vertically).
+ */
+const labelBox = (page: Page, layer: number) =>
+  page.evaluate((layer) => {
+    const canvas = document.querySelectorAll('canvas')[layer]
+    if (!canvas) return null
+    const ratio = canvas.width / canvas.clientWidth
+    const { width, height, data } = canvas
+      .getContext('2d')!
+      .getImageData(0, 0, canvas.width, canvas.height)
+    let box: Box | null = null
+    for (let y = 0; y < height; y++) {
+      let left = -1
+      let right = -1
+      for (let x = 0; x < width; x++) {
+        if (data[(y * width + x) * 4 + 3] === 0) continue
+        if (left < 0) left = x
+        right = x + 1
+      }
+      // Handles are about 10 CSS px across; labels are wider
+      if (left < 0 || right - left < 20 * ratio) continue
+      box ??= { left, top: y, right, bottom: y + 1 }
+      box.left = Math.min(box.left, left)
+      box.right = Math.max(box.right, right)
+      box.bottom = y + 1
+    }
+    return (
+      box && {
+        left: box.left / ratio,
+        top: box.top / ratio,
+        right: box.right / ratio,
+        bottom: box.bottom / ratio,
+      }
+    )
+  }, layer)
+
+/**
+ * That a layer's length label is centred on a viewport point (within a
+ * pixel); resolves to its size, to compare across zoom levels.
+ */
+export const expectLabelCentredAt = async (
+  page: Page,
+  layer: number,
+  x: number,
+  y: number,
+) => {
+  let size = { width: 0, height: 0 }
+  await expect
+    .poll(
+      async () => {
+        const box = await labelBox(page, layer)
+        if (!box) return null
+        size = { width: box.right - box.left, height: box.bottom - box.top }
+        const centre = {
+          x: (box.left + box.right) / 2,
+          y: (box.top + box.bottom) / 2,
+        }
+        // Report the target itself when close enough, else where it is
+        const near = Math.hypot(centre.x - x, centre.y - y) <= 1
+        return near ? { x, y } : centre
+      },
+      { message: `label should be centred at (${x}, ${y})` },
+    )
+    .toEqual({ x, y })
+  return size
+}

@@ -558,6 +558,26 @@ describe('furniture', () => {
     expect(onlyItem(store).rotationDeg).toBe(330)
   })
 
+  it('renames an item, trimming the name', () => {
+    const store = calibrated()
+    store.getState().addFurniture(sofa, viewport)
+
+    store.getState().renameFurniture(onlyItem(store).id, '  Couch ')
+
+    expect(onlyItem(store).name).toBe('Couch')
+  })
+
+  it('ignores an empty name', () => {
+    const store = calibrated()
+    store.getState().addFurniture(sofa, viewport)
+    const { id } = onlyItem(store)
+
+    store.getState().renameFurniture(id, '')
+    store.getState().renameFurniture(id, '   ')
+
+    expect(onlyItem(store).name).toBe('Sofa')
+  })
+
   it('resizes an item in cm, redrawing it to scale around the same centre', () => {
     const store = calibrated()
     store.getState().addFurniture(sofa, viewport)

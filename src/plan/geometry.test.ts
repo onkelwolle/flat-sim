@@ -3,6 +3,7 @@ import {
   distance,
   labelFlipped,
   nudgeOffset,
+  parseRotation,
   snapRotation,
   snapToAngle,
 } from './geometry'
@@ -60,6 +61,30 @@ describe('snapRotation', () => {
     expect(snapRotation(40.5, null)).toBe(40.5)
     expect(snapRotation(-10, null)).toBe(350)
     expect(snapRotation(360, null)).toBe(0)
+  })
+})
+
+describe('parseRotation', () => {
+  it('reads degrees, with a decimal point or comma and an optional °', () => {
+    expect(parseRotation('45')).toBe(45)
+    expect(parseRotation(' 12.5 ')).toBe(12.5)
+    expect(parseRotation('12,5')).toBe(12.5)
+    expect(parseRotation('90°')).toBe(90)
+  })
+
+  it('brings the angle within 0–360°, clockwise', () => {
+    expect(parseRotation('370')).toBe(10)
+    expect(parseRotation('360')).toBe(0)
+    expect(parseRotation('-90')).toBe(270)
+    expect(parseRotation('-0')).toBe(0)
+  })
+
+  it('rejects text that is not an angle', () => {
+    expect(parseRotation('')).toBeNull()
+    expect(parseRotation('abc')).toBeNull()
+    expect(parseRotation('45deg')).toBeNull()
+    expect(parseRotation('1e3')).toBeNull()
+    expect(parseRotation('-')).toBeNull()
   })
 })
 

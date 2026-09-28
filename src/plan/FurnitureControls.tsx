@@ -8,6 +8,7 @@ import {
   type Furniture,
   type FurnitureSpec,
 } from './planStore'
+import { parseRotation } from './geometry'
 import { parseLength } from './scale'
 
 /**
@@ -84,8 +85,8 @@ export function FurnitureStatus() {
 }
 
 /**
- * Side panel for the selected item: its name, its size (editable in cm) and
- * its rotation. Shown only while an item is selected.
+ * Side panel for the selected item, editing its name, its size in cm and its
+ * rotation in degrees. Shown only while an item is selected.
  */
 export function FurniturePanel() {
   const item = usePlanStore((s) =>
@@ -96,63 +97,151 @@ export function FurniturePanel() {
   return <FurniturePanelForm key={item.id} item={item} />
 }
 
-type SizeField = 'width' | 'depth'
+type PanelField = 'name' | 'width' | 'depth' | 'rotation'
 
 function FurniturePanelForm({ item }: { item: Furniture }) {
-  const [text, setText] = useState<Record<SizeField, string>>({
-    width: String(item.widthCm),
-    depth: String(item.depthCm),
-  })
-  const [error, setError] = useState<SizeField>()
+  const [error, setError] = useState<{ field: PanelField; message: string }>()
+  const store = planStore.getState()
 
-  // Apply the size typed so far (on Enter or leaving a field), if it is valid
-  const apply = () => {
-    const widthCm = parseLength(text.width, 'cm')
-    const depthCm = parseLength(text.depth, 'cm')
-    if (widthCm === null) return setError('width')
-    if (depthCm === null) return setError('depth')
-    setError(undefined)
-    setText({ width: String(widthCm), depth: String(depthCm) })
-    planStore.getState().resizeFurniture(item.id, widthCm, depthCm)
-  }
-
-  const input = (field: SizeField, label: string) => (
-    <label>
-      {label}
-      <input
-        className="input"
-        type="text"
-        inputMode="decimal"
-        value={text[field]}
-        aria-invalid={error === field}
-        onChange={(e) => setText({ ...text, [field]: e.currentTarget.value })}
-        onBlur={apply}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter') apply()
-        }}
-      />
-    </label>
+  const field = (
+    name: PanelField,
+    label: string,
+    value: string,
+    // Apply the text typed; false if it is rejected
+    apply: (text: string) => boolean,
+    message: string,
+    decimal = true,
+  ) => (
+    <PanelInput
+      label={label}
+      value={value}
+      decimal={decimal}
+      invalid={error?.field === name}
+      onCommit={(text) => {
+        const valid = apply(text)
+        if (valid) setError((e) => (e?.field === name ? undefined : e))
+        else setError({ field: name, message })
+        return valid
+      }}
+    />
   )
+
+  const resize = (widthCm: number | null, depthCm: number | null) => {
+    if (widthCm === null || depthCm === null) return false
+    store.resizeFurniture(item.id, widthCm, depthCm)
+    return true
+  }
 
   return (
     <aside className="panel" aria-label="Selected item">
       <h2>{item.name}</h2>
       <div className="panel-fields">
-        {input('width', 'Width (cm)')}
-        {input('depth', 'Depth (cm)')}
+        <div className="panel-wide">
+          {field(
+            'name',
+            'Name',
+            item.name,
+            (text) => {
+              const name = parseName(text)
+              if (name) store.renameFurniture(item.id, name)
+              return name !== null
+            },
+            NAME_ERROR,
+            false,
+          )}
+        </div>
+        {field(
+          'width',
+          'Width (cm)',
+          String(item.widthCm),
+          (text) => resize(parseLength(text, 'cm'), item.depthCm),
+          SIZE_ERROR,
+        )}
+        {field(
+          'depth',
+          'Depth (cm)',
+          String(item.depthCm),
+          (text) => resize(item.widthCm, parseLength(text, 'cm')),
+          SIZE_ERROR,
+        )}
+        {field(
+          'rotation',
+          'Rotation (°)',
+          formatRotation(item.rotationDeg),
+          (text) => {
+            const deg = parseRotation(text)
+            if (deg !== null) store.rotateFurniture(item.id, deg)
+            return deg !== null
+          },
+          ROTATION_ERROR,
+        )}
       </div>
       {error && (
         <p className="error" role="alert">
-          {SIZE_ERROR}
+          {error.message}
         </p>
       )}
-      <p className="panel-note">Rotation {formatRotation(item.rotationDeg)}</p>
     </aside>
   )
 }
 
+/**
+ * A text field in the item panel showing `value`, whose edits apply on Enter
+ * or on leaving it. It follows `value` when that changes elsewhere (say, the
+ * rotate handle), and shows `value` again once an edit applies.
+ */
+function PanelInput({
+  label,
+  value,
+  decimal,
+  invalid,
+  onCommit,
+}: {
+  label: string
+  value: string
+  decimal: boolean
+  invalid: boolean
+  /** Apply the text typed; false if it is rejected. */
+  onCommit: (text: string) => boolean
+}) {
+  const [text, setText] = useState(value)
+  const [shown, setShown] = useState(value)
+  if (value !== shown) {
+    setShown(value)
+    setText(value)
+  }
+
+  const commit = () => {
+    // Leaving a field untouched never changes the item (a freely rotated item
+    // shows its rotation rounded)
+    if (text === value && !invalid) return
+    if (onCommit(text)) setText(value)
+  }
+
+  return (
+    <label>
+      {label}
+      <input
+        className="input"
+        type="text"
+        inputMode={decimal ? 'decimal' : undefined}
+        value={text}
+        aria-invalid={invalid}
+        onChange={(e) => setText(e.currentTarget.value)}
+        onBlur={commit}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') commit()
+        }}
+      />
+    </label>
+  )
+}
+
 /** A rotation for display, in whole degrees. */
-const formatRotation = (deg: number) => `${Math.round(deg) % 360}°`
+const formatRotation = (deg: number) => String(Math.round(deg) % 360)
+
+/** A name typed by the user, trimmed, or null if that leaves it empty. */
+const parseName = (text: string) => text.trim() || null
 
 type Field = 'name' | 'width' | 'depth'
 
@@ -199,11 +288,10 @@ function AddFurnitureDialog({
         className="dialog"
         onSubmit={(e) => {
           e.preventDefault()
-          const name = text.name.trim()
+          const name = parseName(text.name)
           const widthCm = parseLength(text.width, 'cm')
           const depthCm = parseLength(text.depth, 'cm')
-          if (!name)
-            return setError({ field: 'name', message: 'Enter a name.' })
+          if (!name) return setError({ field: 'name', message: NAME_ERROR })
           if (widthCm === null)
             return setError({ field: 'width', message: SIZE_ERROR })
           if (depthCm === null)
@@ -236,4 +324,6 @@ function AddFurnitureDialog({
   )
 }
 
+const NAME_ERROR = 'Enter a name.'
 const SIZE_ERROR = 'Enter a width and depth greater than zero.'
+const ROTATION_ERROR = 'Enter a rotation in degrees.'

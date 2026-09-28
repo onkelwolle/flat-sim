@@ -1,4 +1,5 @@
 import { useLayoutEffect, useRef, useState, type MouseEvent } from 'react'
+import { useKeyboardInset } from '../keyboardInset'
 import { usePhoneLayout } from '../useMediaQuery'
 import type { Size } from '../useViewportSize'
 import { CalibrateButton, CalibrationStatus } from './CalibrationControls'
@@ -44,7 +45,9 @@ export function PlanControls({
   const [error, setError] = useState<string | null>(null)
   const [confirmingNew, setConfirmingNew] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
-  const [toolbarBottom, measureToolbar] = useBottomEdge()
+  const [toolbarBottom, measureToolbar] = useBoxMeasure(bottomEdge)
+  const [barHeight, measureBar] = useBoxMeasure(height)
+  const keyboard = useKeyboardInset()
   // Decoding is async; only the most recently chosen file may win
   const latestLoad = useRef(0)
 
@@ -158,14 +161,21 @@ export function PlanControls({
 
       {!phone && status}
 
-      <FurniturePanel below={toolbarBottom} />
+      {!phone && <FurniturePanel below={toolbarBottom} />}
 
-      {/* After the panel, so the open menu covers it */}
       {phone && (
-        <div className="bottom-dock">
+        <div
+          className="bottom-dock"
+          // With the on-screen keyboard up, the bar goes behind it and the
+          // sheet, and the field being typed in, sits on it. The canvas stays
+          // as it is (it fills the page, which the keyboard doesn't resize)
+          style={{ bottom: Math.max(0, keyboard - barHeight) }}
+        >
           {errorMessage}
           {status}
-          <div className="bottom-bar">
+          {/* Before the bar, so the open menu covers it */}
+          <FurniturePanel sheet />
+          <div ref={measureBar} className="bottom-bar">
             {hasPlan ? (
               <>
                 <CalibrateButton compact onMouseDown={keepFocusOffToolbar} />
@@ -246,23 +256,26 @@ export function PlanControls({
 }
 
 /**
- * Where an element's bottom edge is on screen, in px, following its size
- * (the toolbar grows a row when it wraps); 0 while there is no element.
- * Pass the setter as the element's ref.
+ * One measure of an element's box, in px, following its size (the toolbar
+ * grows a row when it wraps); 0 while there is no element. Pass the setter as
+ * the element's ref.
  */
-function useBottomEdge() {
+function useBoxMeasure(measureBox: (box: DOMRect) => number) {
   const [element, setElement] = useState<HTMLElement | null>(null)
-  const [bottom, setBottom] = useState(0)
+  const [value, setValue] = useState(0)
   useLayoutEffect(() => {
     if (!element) return
-    const measure = () => setBottom(element.getBoundingClientRect().bottom)
+    const measure = () => setValue(measureBox(element.getBoundingClientRect()))
     measure()
     const observer = new ResizeObserver(measure)
     observer.observe(element)
     return () => {
       observer.disconnect()
-      setBottom(0)
+      setValue(0)
     }
-  }, [element])
-  return [bottom, setElement] as const
+  }, [element, measureBox])
+  return [value, setElement] as const
 }
+
+const bottomEdge = (box: DOMRect) => box.bottom
+const height = (box: DOMRect) => box.height

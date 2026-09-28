@@ -247,6 +247,63 @@ body {
   overflow-wrap: anywhere;
 }
 
+/* On a phone: along the bottom, resting on the bar */
+.bottom-dock .sheet {
+  position: static;
+  align-self: stretch;
+  width: auto;
+  margin-bottom: -8px;
+  padding: 0 max(1rem, env(safe-area-inset-right)) 0
+    max(1rem, env(safe-area-inset-left));
+  border-radius: 12px 12px 0 0;
+  background: #fff;
+}
+
+.sheet h2 {
+  margin: 0;
+}
+
+.sheet-body {
+  padding-bottom: 0.75rem;
+}
+
+/* The whole title row toggles the sheet */
+.sheet-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 44px;
+  padding: 0.75rem 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.sheet-title:focus-visible {
+  outline: 2px solid #2b6cb0;
+  outline-offset: -2px;
+}
+
+/* Points the way the sheet goes: down to collapse, up to expand */
+.sheet-chevron {
+  flex: none;
+  width: 0.5rem;
+  height: 0.5rem;
+  border-right: 2px solid currentcolor;
+  border-bottom: 2px solid currentcolor;
+  transform: translateY(-25%) rotate(45deg);
+}
+
+.sheet-title[aria-expanded='false'] .sheet-chevron {
+  transform: translateY(25%) rotate(-135deg);
+}
+
 .panel-fields {
   display: grid;
   grid-template-columns: 1fr 1fr;

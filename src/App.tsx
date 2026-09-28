@@ -8,6 +8,7 @@ import { PlanControls } from './plan/PlanControls'
 import { planStore, usePlanStore } from './plan/planStore'
 import { useFurnitureSelection } from './plan/useFurnitureSelection'
 import { useMeasuringTape } from './plan/useMeasuringTape'
+import { useUndoShortcuts } from './plan/useUndoShortcuts'
 import { useViewNavigation } from './plan/useViewNavigation'
 import { ProjectNoticeBanner } from './project/ProjectNoticeBanner'
 import { useProjectPersistence } from './project/useProjectPersistence'
@@ -26,6 +27,7 @@ function App() {
   const [pointer, setPointer] = useState<Point | null>(null)
   const tape = useMeasuringTape(stageRef)
   const selection = useFurnitureSelection()
+  useUndoShortcuts(viewport)
   const [overItem, setOverItem] = useState(false)
 
   const pointerOnPlan = () =>

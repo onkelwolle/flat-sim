@@ -1,5 +1,10 @@
 import type { StoreApi } from 'zustand/vanilla'
-import type { PlanState, Project } from '../plan/planStore'
+import {
+  projectOf,
+  sameProject,
+  type PlanState,
+  type Project,
+} from '../plan/planStore'
 import type { Size } from '../useViewportSize'
 import {
   CorruptProjectError,
@@ -28,19 +33,6 @@ type Options = {
   onNotice: (notice: ProjectNotice | null) => void
 }
 
-// Each part is replaced on change, never mutated, so comparing references
-// tells whether the project changed
-const persisted = ({ plan, calibration, furniture }: PlanState): Project => ({
-  plan,
-  calibration,
-  furniture,
-})
-
-const sameProject = (a: Project, b: Project) =>
-  a.plan === b.plan &&
-  a.calibration === b.calibration &&
-  a.furniture === b.furniture
-
 const toSaved = ({ plan, calibration, furniture }: Project): SavedProject => ({
   plan: plan && { name: plan.name, image: plan.source },
   calibration,
@@ -57,7 +49,7 @@ export function createProjectPersistence({
   decodeImage,
   onNotice,
 }: Options) {
-  let lastSaved = persisted(store.getState())
+  let lastSaved = projectOf(store.getState())
   let timer: ReturnType<typeof setTimeout> | undefined
   let notice: ProjectNotice | null = null
   let stopped = false
@@ -76,7 +68,7 @@ export function createProjectPersistence({
 
   const save = async () => {
     timer = undefined
-    const project = persisted(store.getState())
+    const project = projectOf(store.getState())
     if (sameProject(project, lastSaved)) return
     lastSaved = project
     try {
@@ -118,9 +110,9 @@ export function createProjectPersistence({
 
   const startAutosave = () => {
     if (stopped) return
-    lastSaved = persisted(store.getState())
+    lastSaved = projectOf(store.getState())
     unsubscribe = store.subscribe((state) => {
-      if (sameProject(persisted(state), lastSaved)) return
+      if (sameProject(projectOf(state), lastSaved)) return
       clearTimeout(timer)
       timer = setTimeout(() => void save(), SAVE_DELAY_MS)
     })
@@ -134,19 +126,19 @@ export function createProjectPersistence({
     loading: ReturnType<typeof load>,
     viewport: Size,
   ) => {
-    const atTimeout = persisted(store.getState())
+    const atTimeout = projectOf(store.getState())
     let project: Awaited<typeof loading>
     try {
       project = await loading
     } catch {
       return // The notice already says the project won't be saved
     }
-    if (stopped || !sameProject(persisted(store.getState()), atTimeout)) {
+    if (stopped || !sameProject(projectOf(store.getState()), atTimeout)) {
       return project?.plan?.image.close()
     }
     if (project) {
       store.getState().restoreProject(project, viewport)
-      lastSaved = persisted(store.getState())
+      lastSaved = projectOf(store.getState())
     }
     // Storage works after all
     if (notice === 'storage-unavailable') notify(null)
@@ -187,7 +179,7 @@ export function createProjectPersistence({
     newProject: async () => {
       clearTimeout(timer)
       store.getState().newProject()
-      lastSaved = persisted(store.getState())
+      lastSaved = projectOf(store.getState())
       try {
         await repository.clear()
       } catch {

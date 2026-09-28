@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   createPlanStore,
   MAX_ZOOM,
@@ -72,7 +72,7 @@ describe('plan store', () => {
     expect(store.getState().view).toEqual({ scale: 0.5, x: 0, y: 150 })
   })
 
-  it('releases the image of whichever plan is discarded', () => {
+  it('releases the image of a plan that is not taken, keeping a replaced one to undo to', () => {
     const store = createPlanStore()
     const first = plan('first.png')
     const second = plan('second.png')
@@ -85,7 +85,7 @@ describe('plan store', () => {
 
     store.getState().offerPlan(third, viewport)
     store.getState().confirmReplace(viewport)
-    expect(closed(first)).toBe(true)
+    expect(closed(first)).toBe(false)
     expect(closed(third)).toBe(false)
   })
 })
@@ -748,5 +748,309 @@ describe('projects', () => {
       .addFurniture({ name: 'Bed', widthCm: 140, depthCm: 200 }, viewport)
 
     expect(store.getState().furniture[0]?.id).toBe('item-1')
+  })
+})
+
+describe('undo and redo', () => {
+  // A calibrated 2000×1000 plan at 50 px per metre, with a sofa at (1000, 500)
+  const withSofa = () => {
+    const store = createPlanStore()
+    store.getState().offerPlan(plan('flat.png'), viewport)
+    store.getState().startCalibration()
+    store.getState().placeCalibrationPoint({ x: 100, y: 100 })
+    store.getState().placeCalibrationPoint({ x: 300, y: 100 })
+    store.getState().finishCalibration(400)
+    store
+      .getState()
+      .addFurniture({ name: 'Sofa', widthCm: 200, depthCm: 90 }, viewport)
+    return store
+  }
+  type Store = ReturnType<typeof withSofa>
+  const sofa = (store: Store) => store.getState().furniture[0]!
+  const projectOf = (store: Store) => {
+    const { plan, calibration, furniture } = store.getState()
+    return { plan, calibration, furniture }
+  }
+
+  it('undoes a move, selecting the moved item, and redoes it', () => {
+    const store = withSofa()
+    store.getState().moveFurniture(sofa(store).id, { x: 10, y: 20 })
+    store.getState().clearSelection()
+
+    store.getState().undo(viewport)
+
+    expect(sofa(store).position).toEqual({ x: 1000, y: 500 })
+    expect(store.getState().selectedId).toBe(sofa(store).id)
+
+    store.getState().clearSelection()
+    store.getState().redo(viewport)
+
+    expect(sofa(store).position).toEqual({ x: 10, y: 20 })
+    expect(store.getState().selectedId).toBe(sofa(store).id)
+  })
+
+  it('names the steps undo and redo would take', () => {
+    const store = withSofa()
+    expect(store.getState().nextUndo?.label).toBe('add Sofa')
+    expect(store.getState().nextRedo).toBeNull()
+
+    store.getState().moveFurniture(sofa(store).id, { x: 10, y: 20 })
+    expect(store.getState().nextUndo?.label).toBe('move Sofa')
+
+    store.getState().undo(viewport)
+    expect(store.getState().nextUndo?.label).toBe('add Sofa')
+    expect(store.getState().nextRedo?.label).toBe('move Sofa')
+  })
+
+  it('makes no step of an edit that changes nothing', () => {
+    const store = withSofa()
+    const { id } = sofa(store)
+
+    store.getState().moveFurniture(id, { x: 1000, y: 500 })
+    store.getState().rotateFurniture(id, 360)
+    store.getState().renameFurniture(id, ' Sofa ')
+    store.getState().resizeFurniture(id, 200, 90)
+
+    expect(store.getState().nextUndo?.label).toBe('add Sofa')
+  })
+
+  it('undoes adding an item, selecting nothing, and redoes it, selecting it', () => {
+    const store = withSofa()
+
+    store.getState().undo(viewport)
+
+    expect(store.getState().furniture).toEqual([])
+    expect(store.getState().selectedId).toBeNull()
+
+    store.getState().redo(viewport)
+
+    expect(store.getState().furniture).toHaveLength(1)
+    expect(store.getState().selectedId).toBe(sofa(store).id)
+  })
+
+  it('undoes deleting an item, selecting it, and redoes it, selecting nothing', () => {
+    const store = withSofa()
+    const before = sofa(store)
+    store.getState().deleteSelectedFurniture()
+    expect(store.getState().nextUndo?.label).toBe('delete Sofa')
+
+    store.getState().undo(viewport)
+
+    expect(store.getState().furniture).toEqual([before])
+    expect(store.getState().selectedId).toBe(before.id)
+
+    store.getState().redo(viewport)
+
+    expect(store.getState().furniture).toEqual([])
+    expect(store.getState().selectedId).toBeNull()
+  })
+
+  it('undoes renaming, resizing and rotating an item one edit at a time', () => {
+    const store = withSofa()
+    const { id } = sofa(store)
+    store.getState().renameFurniture(id, 'Couch')
+    store.getState().resizeFurniture(id, 220, 95)
+    store.getState().rotateFurniture(id, 90)
+
+    expect(store.getState().nextUndo?.label).toBe('rotate Couch')
+    store.getState().undo(viewport)
+    expect(sofa(store)).toMatchObject({ name: 'Couch', widthCm: 220 })
+    expect(sofa(store).rotationDeg).toBe(0)
+
+    expect(store.getState().nextUndo?.label).toBe('resize Couch')
+    store.getState().undo(viewport)
+    expect(sofa(store)).toMatchObject({ widthCm: 200, depthCm: 90 })
+
+    expect(store.getState().nextUndo?.label).toBe('rename Sofa to Couch')
+    store.getState().undo(viewport)
+    expect(sofa(store).name).toBe('Sofa')
+  })
+
+  describe('nudging', () => {
+    beforeEach(() => {
+      vi.useFakeTimers()
+    })
+    afterEach(() => {
+      vi.useRealTimers()
+    })
+
+    it('undoes a run of nudges as one step', () => {
+      const store = withSofa()
+      store.getState().nudgeSelectedFurniture('right', 10)
+      vi.advanceTimersByTime(500)
+      store.getState().nudgeSelectedFurniture('right', 10)
+      vi.advanceTimersByTime(500)
+      store.getState().nudgeSelectedFurniture('down', 10)
+
+      store.getState().undo(viewport)
+
+      expect(sofa(store).position).toEqual({ x: 1000, y: 500 })
+      expect(store.getState().nextUndo?.label).toBe('add Sofa')
+    })
+
+    it('ends a run of nudges after a pause or another edit', () => {
+      const store = withSofa()
+      const { id } = sofa(store)
+      store.getState().nudgeSelectedFurniture('right', 10)
+      vi.advanceTimersByTime(1500)
+      store.getState().nudgeSelectedFurniture('right', 10)
+      store.getState().rotateFurniture(id, 90)
+      store.getState().nudgeSelectedFurniture('right', 10)
+
+      store.getState().undo(viewport)
+      expect(sofa(store).position).toEqual({ x: 1010, y: 500 })
+      store.getState().undo(viewport)
+      store.getState().undo(viewport)
+      expect(sofa(store).position).toEqual({ x: 1005, y: 500 })
+    })
+  })
+
+  const recalibrate = (store: Store, lengthCm: number) => {
+    store.getState().startCalibration()
+    store.getState().placeCalibrationPoint({ x: 100, y: 100 })
+    store.getState().placeCalibrationPoint({ x: 300, y: 100 })
+    store.getState().finishCalibration(lengthCm)
+  }
+
+  it('undoes a calibration, selecting nothing', () => {
+    const store = withSofa()
+    recalibrate(store, 200)
+    expect(store.getState().nextUndo?.label).toBe('calibrate scale')
+
+    store.getState().undo(viewport)
+
+    expect(store.getState().calibration?.lengthCm).toBe(400)
+    expect(store.getState().selectedId).toBeNull()
+
+    store.getState().redo(viewport)
+
+    expect(store.getState().calibration?.lengthCm).toBe(200)
+  })
+
+  it('drops only the unfinished calibration line while points are placed', () => {
+    const store = withSofa()
+    store.getState().startCalibration()
+    store.getState().placeCalibrationPoint({ x: 100, y: 100 })
+
+    store.getState().undo(viewport)
+
+    expect(store.getState().calibrationDraft).toBeNull()
+    expect(store.getState().furniture).toHaveLength(1)
+    expect(store.getState().nextUndo?.label).toBe('add Sofa')
+  })
+
+  it('keeps the measuring tape and its measurement through undo and redo', () => {
+    const store = withSofa()
+    store.getState().moveFurniture(sofa(store).id, { x: 10, y: 20 })
+    store.getState().startMeasuring()
+    store.getState().startMeasurementAt({ x: 0, y: 0 })
+    store.getState().finishMeasurementAt({ x: 100, y: 0 })
+    const { tape } = store.getState()
+
+    store.getState().undo(viewport)
+    store.getState().redo(viewport)
+
+    expect(sofa(store).position).toEqual({ x: 10, y: 20 })
+    expect(store.getState().tape).toEqual(tape)
+    expect(store.getState().selectedId).toBeNull()
+  })
+
+  it('closes the measuring tape when undo removes the scale', () => {
+    const store = createPlanStore()
+    store.getState().offerPlan(plan('flat.png'), viewport)
+    store.getState().startCalibration()
+    store.getState().placeCalibrationPoint({ x: 100, y: 100 })
+    store.getState().placeCalibrationPoint({ x: 300, y: 100 })
+    store.getState().finishCalibration(400)
+    store.getState().startMeasuring()
+
+    store.getState().undo(viewport)
+
+    expect(store.getState().calibration).toBeNull()
+    expect(store.getState().tape).toBeNull()
+  })
+
+  const replacePlan = (store: Store, next: Plan) => {
+    store.getState().offerPlan(next, viewport)
+    store.getState().confirmReplace(viewport)
+  }
+
+  it('undoes replacing the plan, bringing back its scale and furniture, fitted', () => {
+    const store = withSofa()
+    const old = store.getState().plan!
+    const before = projectOf(store)
+    replacePlan(store, plan('tall.png', 500, 2000))
+    expect(store.getState().nextUndo?.label).toBe('replace plan')
+
+    store.getState().undo(viewport)
+
+    expect(projectOf(store)).toEqual(before)
+    expect(closed(old)).toBe(false)
+    expect(store.getState().selectedId).toBeNull()
+    expect(store.getState().view).toEqual({ scale: 0.5, x: 0, y: 150 })
+
+    store.getState().redo(viewport)
+
+    expect(store.getState().plan?.name).toBe('tall.png')
+    expect(store.getState().furniture).toEqual([])
+    expect(store.getState().view).toEqual({ scale: 0.4, x: 400, y: 0 })
+  })
+
+  it('releases a replaced plan image once no step can bring it back', () => {
+    const store = withSofa()
+    const old = store.getState().plan!
+    const replacement = plan('new.png')
+    replacePlan(store, replacement)
+    store.getState().undo(viewport)
+
+    // A new edit drops the replacement from redo
+    store.getState().moveFurniture(sofa(store).id, { x: 10, y: 20 })
+
+    expect(closed(replacement)).toBe(true)
+    expect(closed(old)).toBe(false)
+  })
+
+  it('releases the oldest plan image once its step drops out of the history', () => {
+    const store = withSofa()
+    const first = store.getState().plan!
+    // Calibrating, adding the sofa and replacing the plan leave 3 steps that
+    // can bring back the first plan; the history keeps 100
+    for (let i = 0; i < 99; i++) replacePlan(store, plan(`plan-${i}.png`))
+    expect(closed(first)).toBe(false)
+
+    replacePlan(store, plan('last.png'))
+    expect(closed(first)).toBe(false)
+    replacePlan(store, plan('one-more.png'))
+    expect(closed(first)).toBe(true)
+  })
+
+  it('starts a new project with no history, releasing every image in it', () => {
+    const store = withSofa()
+    const old = store.getState().plan!
+    replacePlan(store, plan('new.png'))
+
+    store.getState().newProject()
+
+    expect(store.getState().nextUndo).toBeNull()
+    expect(store.getState().nextRedo).toBeNull()
+    expect(closed(old)).toBe(true)
+  })
+
+  it('starts a restored project with no history', () => {
+    const store = withSofa()
+    const old = store.getState().plan!
+    replacePlan(store, plan('new.png'))
+    store.getState().undo(viewport)
+
+    store
+      .getState()
+      .restoreProject(
+        { plan: plan('saved.png'), calibration: null, furniture: [] },
+        viewport,
+      )
+
+    expect(store.getState().nextUndo).toBeNull()
+    expect(store.getState().nextRedo).toBeNull()
+    expect(closed(old)).toBe(true)
   })
 })

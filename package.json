@@ -2,6 +2,13 @@
   "name": "flat-sim",
   "private": true,
   "version": "0.0.0",
+  "description": "Browser app for planning furniture placement on scaled floor plans",
+  "license": "MIT",
+  "homepage": "https://onkelwolle.github.io/flat-sim/",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/onkelwolle/flat-sim.git"
+  },
   "type": "module",
   "scripts": {
     "dev": "vite",

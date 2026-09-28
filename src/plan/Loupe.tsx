@@ -10,21 +10,25 @@ const CROSSHAIR = '#1a202c'
 /**
  * The plan under a finger, magnified, with a crosshair on the point it is
  * placing: shown beside the finger, which covers that point. `finger` is in
- * client pixels on the full-window stage; `pointer` is the calibrate tool's
- * rubber-band end, as for `CalibrationLayer`.
+ * client pixels on the full-window stage; `placing` is the point, in plan
+ * pixels, if it is not the one under the finger (a snapped measurement end);
+ * `pointer` is the calibrate tool's rubber-band end, as for
+ * `CalibrationLayer`.
  */
 export function Loupe({
   finger,
+  placing,
   pointer,
 }: {
   finger: Point
+  placing?: Point
   pointer: Point | null
 }) {
   const plan = usePlanStore((s) => s.plan)
   const view = usePlanStore((s) => s.view)
   if (!plan) return null
   const centre = loupeCentre(finger)
-  const magnified = loupeView(screenToPlan(view, finger), view.scale)
+  const magnified = loupeView(placing ?? screenToPlan(view, finger), view.scale)
   const half = LOUPE_SIZE / 2
 
   return (

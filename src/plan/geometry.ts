@@ -23,6 +23,20 @@ export function snapToAngle(from: Point, to: Point): Point {
   return { x: clean(from.x + along * ux), y: clean(from.y + along * uy) }
 }
 
+/** How close, in degrees, a line must come to snap without Shift. */
+export const MAGNETIC_SNAP_DEG = 5
+
+/**
+ * `to`, snapped as `snapToAngle` does, but only if the line from `from`
+ * already lies within `MAGNETIC_SNAP_DEG` of horizontal, vertical or 45°:
+ * magnetic snapping, for fingers and pens, which have no Shift key.
+ */
+export function snapToAngleNear(from: Point, to: Point): Point {
+  const angle = Math.atan2(to.y - from.y, to.x - from.x)
+  const off = Math.abs(angle - Math.round(angle / SNAP_STEP) * SNAP_STEP)
+  return off <= (MAGNETIC_SNAP_DEG * Math.PI) / 180 ? snapToAngle(from, to) : to
+}
+
 /** Rotation steps an item snaps to while being rotated, in degrees. */
 export const ROTATION_STEP = 15
 

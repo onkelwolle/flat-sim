@@ -1,7 +1,7 @@
 import type Konva from 'konva'
 import { useEffect, useRef, type RefObject } from 'react'
 import { isDialogOpen } from '../dialogs'
-import { distance, snapToAngle } from './geometry'
+import { distance, snapToAngle, snapToAngleNear } from './geometry'
 import { planStore, usePlanStore } from './planStore'
 import type { PlacingPressHandlers } from './usePlacingPress'
 import type { Point } from './zoomView'
@@ -12,19 +12,34 @@ import type { Point } from './zoomView'
 const DRAG_THRESHOLD = 4
 
 /**
- * Where the measurement's end goes for the pointer's position on the plan:
- * snapped to horizontal, vertical or 45° from its start if `snap` is set.
+ * How the measurement's end snaps: fully (to the nearest of horizontal,
+ * vertical or 45°), magnetically (only when already close to one) or not.
  */
-function endAt(stage: Konva.Stage | null, snap: boolean): Point | null {
+type Snap = 'full' | 'near' | 'none'
+
+/**
+ * How a pointer event snaps: a mouse fully while Shift is held, a finger or
+ * pen always magnetically, as they have no Shift key.
+ */
+const snapFor = (e: PointerEvent): Snap =>
+  e.pointerType === 'touch' || e.pointerType === 'pen'
+    ? 'near'
+    : e.shiftKey
+      ? 'full'
+      : 'none'
+
+/** Where the measurement's end goes for the pointer's position on the plan. */
+function endAt(stage: Konva.Stage | null, snap: Snap): Point | null {
   const at = stage?.getRelativePointerPosition()
   return at ? snapped(at, snap) : null
 }
 
-/** `at`, snapped from the measurement's start if `snap` is set. */
-function snapped(at: Point, snap: boolean): Point {
+/** `at`, snapped from the measurement's start as `snap` says. */
+function snapped(at: Point, snap: Snap): Point {
   const { tape } = planStore.getState()
   const start = tape?.stretching ? tape.measurement?.start : undefined
-  return snap && start ? snapToAngle(start, at) : at
+  if (!start || snap === 'none') return at
+  return snap === 'full' ? snapToAngle(start, at) : snapToAngleNear(start, at)
 }
 
 type MeasuringTapeHandlers = {
@@ -38,8 +53,8 @@ type MeasuringTapeHandlers = {
 
 /**
  * Pointer input for the measuring tape: click, click or click-drag between
- * two points; Shift snaps the end to horizontal, vertical or 45°; Esc leaves
- * the tape. Points go to the plan store in plan pixels.
+ * two points; Shift snaps the end to horizontal, vertical or 45°, and a finger
+ * or pen snaps it there within a few degrees; Esc leaves the tape. Points go to the plan store in plan pixels.
  *
  * Touch and pen go through `placing`: the loupe shows each press, a drag's
  * end or a second tap's end goes where the finger lifts, and lifting off the
@@ -61,7 +76,10 @@ export function useMeasuringTape(
       if (e.type === 'keydown' && e.key === 'Escape') store.stopMeasuring()
       // Pressing or releasing Shift re-snaps without moving the pointer
       if (e.key === 'Shift') {
-        const at = endAt(stageRef.current, e.type === 'keydown')
+        const at = endAt(
+          stageRef.current,
+          e.type === 'keydown' ? 'full' : 'none',
+        )
         if (at) store.stretchMeasurementTo(at)
       }
     }
@@ -75,7 +93,7 @@ export function useMeasuringTape(
 
   const onCanvasPress = (e: PointerEvent) => {
     const store = planStore.getState()
-    const at = endAt(stageRef.current, e.shiftKey)
+    const at = endAt(stageRef.current, snapFor(e))
     if (!at) return
     const touching = placing.begin(e)
     if (store.tape?.stretching) {
@@ -91,7 +109,7 @@ export function useMeasuringTape(
 
   const onPointerMove = (e: PointerEvent) => {
     if (!active) return
-    const at = endAt(stageRef.current, e.shiftKey)
+    const at = endAt(stageRef.current, snapFor(e))
     if (at) planStore.getState().stretchMeasurementTo(at)
   }
 
@@ -111,11 +129,11 @@ export function useMeasuringTape(
         if (pressed) store.dropMeasurementInProgress()
         else if (start) store.stretchMeasurementTo(start)
       } else if (!pressed || dragged) {
-        store.finishMeasurementAt(snapped(lifted.at, e.shiftKey))
+        store.finishMeasurementAt(snapped(lifted.at, snapFor(e)))
       }
       return
     }
-    const at = endAt(stageRef.current, e.shiftKey)
+    const at = endAt(stageRef.current, snapFor(e))
     if (dragged && at) store.finishMeasurementAt(at)
   }
 

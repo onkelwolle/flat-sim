@@ -31,7 +31,7 @@ function App() {
   const pointerOnPlan = () =>
     stageRef.current?.getRelativePointerPosition() ?? null
 
-  const navigation = useViewNavigation(
+  const { stageProps: navigation, panning } = useViewNavigation(
     stageRef,
     viewport,
     calibrating
@@ -54,6 +54,8 @@ function App() {
           navigation.onPointerDown(e)
         }}
         onPointerMove={(e) => {
+          // Panning moves the pointer with the plan: line ends stay put
+          if (panning) return
           setPointer(calibrating ? pointerOnPlan() : null)
           tape.onPointerMove(e.evt)
         }}

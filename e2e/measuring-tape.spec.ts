@@ -74,6 +74,31 @@ test.describe('once calibrated', () => {
     await expect(status(page)).toHaveText(/^Distance: 4\.00 m\. Click to/)
   })
 
+  test('space+drag pans without moving the end being stretched', async ({
+    page,
+  }) => {
+    await page.mouse.click(320, 360)
+    // Plan (100, 100) to (200, 100): 2 m
+    await page.mouse.move(640, 360, { steps: 3 })
+    await expect(status(page)).toHaveText(/^Distance: 2\.00 m\./)
+
+    // Pan by (100, 50): plan (300, 100) is now at screen (1060, 410)
+    await page.keyboard.down('Space')
+    await page.mouse.down()
+    await page.mouse.move(740, 410, { steps: 5 })
+    await expect(status(page)).toHaveText(/^Distance: 2\.00 m\./)
+    await page.mouse.move(640, 600, { steps: 5 })
+    await expect(status(page)).toHaveText(/^Distance: 2\.00 m\./)
+    await page.mouse.move(740, 410, { steps: 5 })
+    await page.mouse.up()
+    await page.keyboard.up('Space')
+    await expect(status(page)).toHaveText(/^Distance: 2\.00 m\./)
+
+    // The end follows the pointer again, still stretching
+    await page.mouse.move(1060, 410, { steps: 3 })
+    await expect(status(page)).toHaveText(/^Distance: 4\.00 m\. Click the/)
+  })
+
   test('holding Shift snaps to horizontal, vertical or 45°', async ({
     page,
   }) => {

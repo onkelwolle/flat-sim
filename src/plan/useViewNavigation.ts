@@ -44,9 +44,19 @@ type StageNavigationProps = {
   style: { cursor?: string }
 }
 
+type ViewNavigation = {
+  /** Props for the Stage. */
+  stageProps: StageNavigationProps
+  /**
+   * Whether a drag is panning the view. The pointer then moves with the plan,
+   * so tools must not follow it until the pan ends.
+   */
+  panning: boolean
+}
+
 /**
  * Zoom (wheel, trackpad pinch) and pan (drag on empty canvas, space+drag) the
- * plan view. Returns props for the Stage.
+ * plan view.
  *
  * While a tool is active, pass `onCanvasPress`: a primary press on the canvas
  * then goes to the tool instead of panning, and only space+drag pans.
@@ -55,7 +65,7 @@ export function useViewNavigation(
   stageRef: RefObject<Konva.Stage | null>,
   viewport: Size,
   onCanvasPress?: (e: PointerEvent) => void,
-): StageNavigationProps {
+): ViewNavigation {
   const [spaceHeld, setSpaceHeld] = useState(false)
   const [panning, setPanning] = useState(false)
   const lastPointer = useRef<Point>({ x: 0, y: 0 })
@@ -178,5 +188,5 @@ export function useViewNavigation(
 
   const cursor = panning ? 'grabbing' : spaceHeld ? 'grab' : undefined
 
-  return { onWheel, onPointerDown, style: { cursor } }
+  return { stageProps: { onWheel, onPointerDown, style: { cursor } }, panning }
 }

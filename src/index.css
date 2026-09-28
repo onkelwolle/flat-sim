@@ -54,9 +54,13 @@ body {
 /* Wraps onto more rows when it doesn't fit; only its controls take input */
 .toolbar {
   position: fixed;
-  top: 12px;
-  left: 12px;
-  max-width: calc(100% - 24px);
+  /* Clear of a notch or rounded corner (a phone on its side) */
+  top: max(12px, env(safe-area-inset-top));
+  left: max(12px, env(safe-area-inset-left));
+  max-width: calc(
+    100% - max(12px, env(safe-area-inset-left)) -
+      max(12px, env(safe-area-inset-right))
+  );
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -76,19 +80,117 @@ body {
   color: #9b1c1c;
 }
 
+/* As wide as its text, but wraps rather than run off a narrow screen */
 .status {
   position: fixed;
-  bottom: 12px;
+  bottom: max(12px, env(safe-area-inset-bottom));
   left: 50%;
   transform: translateX(-50%);
+  box-sizing: border-box;
+  width: max-content;
+  max-width: calc(100% - 24px);
   margin: 0;
   padding: 0.4rem 0.8rem;
   border-radius: 6px;
   background: rgb(255 255 255 / 0.92);
   color: #333;
   box-shadow: 0 1px 4px rgb(0 0 0 / 0.15);
-  white-space: nowrap;
+  text-align: center;
   pointer-events: none;
+}
+
+/*
+ * Phone-narrow screens: the tools sit in a bar along the bottom edge, clear
+ * of the home indicator, with the status (or an error) just above it
+ */
+.bottom-dock {
+  position: fixed;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  pointer-events: none;
+}
+
+/* Only the dock's gaps let the canvas through (and the status, as ever) */
+.bottom-dock > :not(.status) {
+  pointer-events: auto;
+}
+
+.bottom-dock .status,
+.bottom-dock .error {
+  position: static;
+  transform: none;
+  max-width: calc(100% - 24px);
+}
+
+.bottom-bar {
+  box-sizing: border-box;
+  align-self: stretch;
+  display: flex;
+  gap: 4px;
+  padding: 8px max(8px, env(safe-area-inset-right))
+    calc(8px + env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-left));
+  background: rgb(255 255 255 / 0.95);
+  box-shadow: 0 -1px 4px rgb(0 0 0 / 0.15);
+  pointer-events: auto;
+}
+
+/* Share the width; a label too long for its share wraps inside its button */
+.bottom-bar .button {
+  flex: 1 1 auto;
+  padding-inline: 0.25rem;
+  font-size: 0.875rem;
+}
+
+.menu-anchor {
+  position: relative;
+  display: flex;
+}
+
+/* Under the open menu, over everything else */
+.menu-backdrop {
+  position: fixed;
+  inset: 0;
+  touch-action: none;
+}
+
+/* Opens upwards from its button, at the bar's right end */
+.menu {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 16px);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 12rem;
+  padding: 6px;
+  border-radius: 10px;
+  background: #fff;
+  box-shadow: 0 4px 16px rgb(0 0 0 / 0.2);
+}
+
+.bottom-bar .menu-item {
+  padding-inline: 0.8rem;
+  border-color: transparent;
+  font-size: 1rem;
+  text-align: left;
+}
+
+.menu-item:disabled {
+  color: #999;
+  cursor: default;
+}
+
+/* The top is free on a phone, so notices go there, clear of the bottom bar */
+@media (width < 600px) {
+  .notice {
+    top: max(12px, env(safe-area-inset-top));
+    bottom: auto;
+  }
 }
 
 .button[aria-pressed='true'] {

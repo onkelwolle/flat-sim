@@ -1,10 +1,5 @@
-import {
-  useLayoutEffect,
-  useRef,
-  useState,
-  type MouseEvent,
-  type RefObject,
-} from 'react'
+import { useLayoutEffect, useRef, useState, type MouseEvent } from 'react'
+import { usePhoneLayout } from '../useMediaQuery'
 import type { Size } from '../useViewportSize'
 import { CalibrateButton, CalibrationStatus } from './CalibrationControls'
 import { ConfirmDialog } from './ConfirmDialog'
@@ -16,8 +11,9 @@ import {
 } from './FurnitureControls'
 import { MeasureButton, MeasuringTapeStatus } from './MeasuringTapeControls'
 import { loadPlanFile, PLAN_FILE_TYPES } from './loadPlanFile'
+import { OverflowMenu } from './OverflowMenu'
 import { planStore, usePlanStore } from './planStore'
-import { UndoButtons } from './UndoControls'
+import { RedoButton, UndoButton } from './UndoControls'
 import { useFileDrop } from './useFileDrop'
 
 // A clicked button keeps focus, so the space bar would press it again instead
@@ -26,8 +22,10 @@ const keepFocusOffToolbar = (e: MouseEvent) => e.preventDefault()
 
 /**
  * HTML overlay for opening a plan (file picker, drop target, replace prompt),
- * undoing and redoing edits, fitting it to the screen, calibrating its scale, measuring it, adding or
- * deleting furniture and starting a new project.
+ * undoing and redoing edits, fitting it to the screen, calibrating its scale,
+ * measuring it, adding or deleting furniture and starting a new project. On a
+ * phone-narrow screen the main tools sit in a bar at the bottom, the rest in
+ * its "⋯" menu; otherwise all of them in a toolbar at the top.
  */
 export function PlanControls({
   viewport,
@@ -37,15 +35,16 @@ export function PlanControls({
   /** Drop the plan and everything on it, once the user has confirmed. */
   onNewProject: () => void
 }) {
+  const phone = usePhoneLayout()
   const hasPlan = usePlanStore((s) => s.plan !== null)
   const pendingPlan = usePlanStore((s) => s.pendingPlan)
   const measuring = usePlanStore((s) => s.tape !== null)
   const selected = usePlanStore((s) => s.selectedId !== null)
+  const nextRedo = usePlanStore((s) => s.nextRedo?.label)
   const [error, setError] = useState<string | null>(null)
   const [confirmingNew, setConfirmingNew] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
-  const toolbarRef = useRef<HTMLDivElement>(null)
-  const toolbarBottom = useBottomEdge(toolbarRef)
+  const [toolbarBottom, measureToolbar] = useBottomEdge()
   // Decoding is async; only the most recently chosen file may win
   const latestLoad = useRef(0)
 
@@ -65,66 +64,91 @@ export function PlanControls({
   // No new plans while a prompt is open
   const dragging = useFileDrop(openFile, !pendingPlan && !confirmingNew)
 
+  const choosePlan = () => inputRef.current?.click()
+  const fitToScreen = () => planStore.getState().fitToScreen(viewport)
+
+  const openPlanButton = (
+    <button
+      type="button"
+      className="button"
+      onMouseDown={keepFocusOffToolbar}
+      onClick={choosePlan}
+    >
+      Open plan…
+    </button>
+  )
+
+  const errorMessage = error && (
+    <p className="error" role="alert">
+      {error}
+    </p>
+  )
+
+  // Tools and selection exclude each other, so one status fits
+  const status =
+    hasPlan &&
+    (measuring ? (
+      <MeasuringTapeStatus />
+    ) : selected ? (
+      <FurnitureStatus />
+    ) : (
+      <CalibrationStatus />
+    ))
+
   return (
     <>
-      <div ref={toolbarRef} className="toolbar">
-        <button
-          type="button"
-          className="button"
-          onMouseDown={keepFocusOffToolbar}
-          onClick={() => inputRef.current?.click()}
-        >
-          Open plan…
-        </button>
-        {hasPlan && (
-          <button
-            type="button"
-            className="button"
-            onMouseDown={keepFocusOffToolbar}
-            onClick={() => setConfirmingNew(true)}
-          >
-            New project
-          </button>
-        )}
-        {hasPlan && (
-          <UndoButtons viewport={viewport} onMouseDown={keepFocusOffToolbar} />
-        )}
-        {hasPlan && (
-          <button
-            type="button"
-            className="button"
-            onMouseDown={keepFocusOffToolbar}
-            onClick={() => planStore.getState().fitToScreen(viewport)}
-          >
-            Fit to screen
-          </button>
-        )}
-        {hasPlan && <CalibrateButton onMouseDown={keepFocusOffToolbar} />}
-        {hasPlan && <MeasureButton onMouseDown={keepFocusOffToolbar} />}
-        {hasPlan && (
-          <AddFurnitureButton
-            viewport={viewport}
-            onMouseDown={keepFocusOffToolbar}
-          />
-        )}
-        <DeleteFurnitureButton onMouseDown={keepFocusOffToolbar} />
-        <input
-          ref={inputRef}
-          type="file"
-          accept={PLAN_FILE_TYPES.join(',')}
-          hidden
-          onChange={(e) => {
-            const file = e.currentTarget.files?.[0]
-            e.currentTarget.value = '' // let the same file be picked again
-            if (file) void openFile(file)
-          }}
-        />
-        {error && (
-          <p className="error" role="alert">
-            {error}
-          </p>
-        )}
-      </div>
+      {!phone && (
+        <div ref={measureToolbar} className="toolbar">
+          {openPlanButton}
+          {hasPlan && (
+            <button
+              type="button"
+              className="button"
+              onMouseDown={keepFocusOffToolbar}
+              onClick={() => setConfirmingNew(true)}
+            >
+              New project
+            </button>
+          )}
+          {hasPlan && (
+            <UndoButton viewport={viewport} onMouseDown={keepFocusOffToolbar} />
+          )}
+          {hasPlan && (
+            <RedoButton viewport={viewport} onMouseDown={keepFocusOffToolbar} />
+          )}
+          {hasPlan && (
+            <button
+              type="button"
+              className="button"
+              onMouseDown={keepFocusOffToolbar}
+              onClick={fitToScreen}
+            >
+              Fit to screen
+            </button>
+          )}
+          {hasPlan && <CalibrateButton onMouseDown={keepFocusOffToolbar} />}
+          {hasPlan && <MeasureButton onMouseDown={keepFocusOffToolbar} />}
+          {hasPlan && (
+            <AddFurnitureButton
+              viewport={viewport}
+              onMouseDown={keepFocusOffToolbar}
+            />
+          )}
+          <DeleteFurnitureButton onMouseDown={keepFocusOffToolbar} />
+          {errorMessage}
+        </div>
+      )}
+      <input
+        ref={inputRef}
+        type="file"
+        accept={PLAN_FILE_TYPES.join(',')}
+        hidden
+        onChange={(e) => {
+          const file = e.currentTarget.files?.[0]
+          e.currentTarget.value = '' // let the same file be picked again
+          if (file) void openFile(file)
+        }}
+      />
 
       {!hasPlan && !dragging && (
         <p className="empty-hint">
@@ -132,17 +156,61 @@ export function PlanControls({
         </p>
       )}
 
-      {/* Tools and selection exclude each other, so one status fits */}
-      {hasPlan &&
-        (measuring ? (
-          <MeasuringTapeStatus />
-        ) : selected ? (
-          <FurnitureStatus />
-        ) : (
-          <CalibrationStatus />
-        ))}
+      {!phone && status}
 
       <FurniturePanel below={toolbarBottom} />
+
+      {/* After the panel, so the open menu covers it */}
+      {phone && (
+        <div className="bottom-dock">
+          {errorMessage}
+          {status}
+          <div className="bottom-bar">
+            {hasPlan ? (
+              <>
+                <CalibrateButton compact onMouseDown={keepFocusOffToolbar} />
+                <MeasureButton onMouseDown={keepFocusOffToolbar} />
+                <AddFurnitureButton
+                  viewport={viewport}
+                  compact
+                  onMouseDown={keepFocusOffToolbar}
+                />
+                <UndoButton
+                  viewport={viewport}
+                  onMouseDown={keepFocusOffToolbar}
+                />
+                <OverflowMenu
+                  label="More"
+                  onMouseDown={keepFocusOffToolbar}
+                  items={[
+                    { label: 'Open plan…', onSelect: choosePlan },
+                    {
+                      label: 'New project',
+                      onSelect: () => setConfirmingNew(true),
+                    },
+                    {
+                      label: 'Redo',
+                      onSelect: () => planStore.getState().redo(viewport),
+                      disabled: !nextRedo,
+                      title: nextRedo && `Redo ${nextRedo}`,
+                    },
+                    { label: 'Fit to screen', onSelect: fitToScreen },
+                    {
+                      label: 'Delete item',
+                      onSelect: () =>
+                        planStore.getState().deleteSelectedFurniture(),
+                      disabled: !selected,
+                    },
+                  ]}
+                />
+              </>
+            ) : (
+              // Nothing else to do until there is a plan
+              openPlanButton
+            )}
+          </div>
+        </div>
+      )}
 
       {dragging && <div className="drop-overlay">Drop to open the plan</div>}
 
@@ -178,19 +246,23 @@ export function PlanControls({
 }
 
 /**
- * Where the element's bottom edge is on screen, in px, following its size:
- * the toolbar grows a row when it wraps.
+ * Where an element's bottom edge is on screen, in px, following its size
+ * (the toolbar grows a row when it wraps); 0 while there is no element.
+ * Pass the setter as the element's ref.
  */
-function useBottomEdge(ref: RefObject<HTMLElement | null>) {
+function useBottomEdge() {
+  const [element, setElement] = useState<HTMLElement | null>(null)
   const [bottom, setBottom] = useState(0)
   useLayoutEffect(() => {
-    const element = ref.current
     if (!element) return
     const measure = () => setBottom(element.getBoundingClientRect().bottom)
     measure()
     const observer = new ResizeObserver(measure)
     observer.observe(element)
-    return () => observer.disconnect()
-  }, [ref])
-  return bottom
+    return () => {
+      observer.disconnect()
+      setBottom(0)
+    }
+  }, [element])
+  return [bottom, setElement] as const
 }

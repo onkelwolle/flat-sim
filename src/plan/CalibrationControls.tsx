@@ -3,10 +3,15 @@ import { isDialogOpen, useModalDialog } from '../dialogs'
 import { planStore, selectScale, usePlanStore } from './planStore'
 import { parseLength, type LengthUnit } from './scale'
 
-/** Toolbar button that starts (or, while active, cancels) the calibrate tool. */
+/**
+ * Toolbar button that starts (or, while active, cancels) the calibrate tool;
+ * `compact` shortens its label for the phone's bottom bar.
+ */
 export function CalibrateButton({
+  compact = false,
   onMouseDown,
 }: {
+  compact?: boolean
   onMouseDown: (e: MouseEvent) => void
 }) {
   const calibrating = usePlanStore((s) => s.calibrationDraft !== null)
@@ -21,7 +26,7 @@ export function CalibrateButton({
       onMouseDown={onMouseDown}
       onClick={calibrating ? cancelCalibration : startCalibration}
     >
-      {calibrated ? 'Recalibrate' : 'Calibrate scale'}
+      {calibrated ? 'Recalibrate' : compact ? 'Calibrate' : 'Calibrate scale'}
     </button>
   )
 }

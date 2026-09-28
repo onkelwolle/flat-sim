@@ -1,5 +1,12 @@
 import { expect, test, type Page } from '@playwright/test'
-import { expectWidePlanFitted, pickFile, tallPlan, widePlan } from './plan.ts'
+import {
+  CALIBRATION_LAYER,
+  expectLabelCentredAt,
+  expectWidePlanFitted,
+  pickFile,
+  tallPlan,
+  widePlan,
+} from './plan.ts'
 
 test.use({ viewport: { width: 1280, height: 720 } })
 
@@ -69,6 +76,21 @@ test('measures the scale in plan pixels, whatever the zoom and pan', async ({
   await calibrate(page, [420, 410], [420 + 200 * zoomedScale, 410], '400', 'cm')
 
   await expect(status(page)).toHaveText('Scale: 1 m = 50 plan px')
+})
+
+test('the length label is centred on the line, the same size at any zoom', async ({
+  page,
+}) => {
+  // Plan (200, 50) to (200, 150), vertical, with its midpoint at (640, 360)
+  await calibrate(page, [640, 200], [640, 520], '2', 'm')
+  const size = await expectLabelCentredAt(page, CALIBRATION_LAYER, 640, 360)
+
+  // Zooming around the midpoint keeps it put
+  await page.mouse.move(640, 360)
+  await page.mouse.wheel(0, -100)
+  const zoomed = await expectLabelCentredAt(page, CALIBRATION_LAYER, 640, 360)
+  expect(zoomed.width).toBeCloseTo(size.width, 0)
+  expect(zoomed.height).toBeCloseTo(size.height, 0)
 })
 
 test('re-calibrating replaces the scale', async ({ page }) => {

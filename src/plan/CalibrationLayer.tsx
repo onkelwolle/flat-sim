@@ -1,4 +1,5 @@
-import { Circle, Label, Layer, Line, Tag, Text } from 'react-konva'
+import { Layer } from 'react-konva'
+import { MeasuredLine } from './MeasuredLine'
 import { usePlanStore } from './planStore'
 import { formatLength } from './scale'
 import type { Point } from './zoomView'
@@ -27,40 +28,21 @@ export function CalibrationLayer({
   const points: Point[] =
     draft ?? (calibration ? [calibration.start, calibration.end] : [])
   const [start, end = draft && pointer] = points
-  const label = !draft && calibration && formatLength(calibration.lengthCm)
+  const label =
+    !draft && calibration ? formatLength(calibration.lengthCm) : null
 
   return (
     <Layer listening={false}>
-      {start && end && (
-        <Line
-          points={[start.x, start.y, end.x, end.y]}
-          stroke={COLOUR}
-          strokeWidth={2 / zoom}
-          dash={draft ? [6 / zoom, 4 / zoom] : undefined}
+      {start && (
+        <MeasuredLine
+          start={start}
+          end={end}
+          label={label}
+          colour={COLOUR}
+          zoom={zoom}
+          dashed={!!draft}
+          handles={points.length > 1 ? 'both' : 'start'}
         />
-      )}
-      {points.map((p, i) => (
-        <Circle
-          key={i}
-          x={p.x}
-          y={p.y}
-          radius={4 / zoom}
-          fill="#fff"
-          stroke={COLOUR}
-          strokeWidth={2 / zoom}
-        />
-      ))}
-      {label && start && end && (
-        <Label
-          x={(start.x + end.x) / 2}
-          y={(start.y + end.y) / 2}
-          scaleX={1 / zoom}
-          scaleY={1 / zoom}
-          offsetY={-8}
-        >
-          <Tag fill={COLOUR} cornerRadius={4} />
-          <Text text={label} fill="#fff" fontSize={13} padding={4} />
-        </Label>
       )}
     </Layer>
   )

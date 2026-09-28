@@ -31,6 +31,16 @@ body {
   outline-offset: 2px;
 }
 
+/* Any touch screen, even one beside a mouse, gets targets a finger can hit */
+@media (any-pointer: coarse) {
+  .button,
+  .input {
+    box-sizing: border-box;
+    min-width: 44px;
+    min-height: 44px;
+  }
+}
+
 .button.primary {
   border-color: #2b6cb0;
   background: #2b6cb0;
@@ -41,13 +51,21 @@ body {
   background: #245a93;
 }
 
+/* Wraps onto more rows when it doesn't fit; only its controls take input */
 .toolbar {
   position: fixed;
   top: 12px;
   left: 12px;
+  max-width: calc(100% - 24px);
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 12px;
+  pointer-events: none;
+}
+
+.toolbar > * {
+  pointer-events: auto;
 }
 
 .error {
@@ -111,7 +129,8 @@ body {
 
 .panel {
   position: fixed;
-  top: 64px;
+  /* Clear of the toolbar, however many rows it wraps onto */
+  top: max(64px, var(--below, 0px) + 12px);
   right: 12px;
   width: 13rem;
   padding: 0.75rem 1rem;

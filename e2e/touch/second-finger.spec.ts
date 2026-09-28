@@ -75,9 +75,9 @@ test('one finger still drags an item, as one step', async ({ page }) => {
 })
 
 test.describe('turning', () => {
-  // The rotate handle sits 50 px above the selected sofa's top edge; turned
+  // The rotate handle sits 60 px above the selected sofa's top edge; turned
   // a quarter, the sofa no longer reaches its old left end at x 470
-  const handle: [number, number] = [597, 292]
+  const handle: [number, number] = [597, 282]
 
   test('one finger on the rotate handle turns the item', async ({ page }) => {
     await addSofa(page)

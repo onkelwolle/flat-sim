@@ -1,4 +1,10 @@
-import { useRef, useState, type MouseEvent } from 'react'
+import {
+  useLayoutEffect,
+  useRef,
+  useState,
+  type MouseEvent,
+  type RefObject,
+} from 'react'
 import type { Size } from '../useViewportSize'
 import { CalibrateButton, CalibrationStatus } from './CalibrationControls'
 import { ConfirmDialog } from './ConfirmDialog'
@@ -38,6 +44,8 @@ export function PlanControls({
   const [error, setError] = useState<string | null>(null)
   const [confirmingNew, setConfirmingNew] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
+  const toolbarRef = useRef<HTMLDivElement>(null)
+  const toolbarBottom = useBottomEdge(toolbarRef)
   // Decoding is async; only the most recently chosen file may win
   const latestLoad = useRef(0)
 
@@ -59,7 +67,7 @@ export function PlanControls({
 
   return (
     <>
-      <div className="toolbar">
+      <div ref={toolbarRef} className="toolbar">
         <button
           type="button"
           className="button"
@@ -134,7 +142,7 @@ export function PlanControls({
           <CalibrationStatus />
         ))}
 
-      <FurniturePanel />
+      <FurniturePanel below={toolbarBottom} />
 
       {dragging && <div className="drop-overlay">Drop to open the plan</div>}
 
@@ -167,4 +175,22 @@ export function PlanControls({
       )}
     </>
   )
+}
+
+/**
+ * Where the element's bottom edge is on screen, in px, following its size:
+ * the toolbar grows a row when it wraps.
+ */
+function useBottomEdge(ref: RefObject<HTMLElement | null>) {
+  const [bottom, setBottom] = useState(0)
+  useLayoutEffect(() => {
+    const element = ref.current
+    if (!element) return
+    const measure = () => setBottom(element.getBoundingClientRect().bottom)
+    measure()
+    const observer = new ResizeObserver(measure)
+    observer.observe(element)
+    return () => observer.disconnect()
+  }, [ref])
+  return bottom
 }

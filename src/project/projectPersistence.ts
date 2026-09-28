@@ -14,6 +14,11 @@ export type ProjectNotice =
 /** How long changes must pause before they are saved. */
 export const SAVE_DELAY_MS = 500
 
+/** How long restoring may take before the app starts empty instead. */
+export const RESTORE_TIMEOUT_MS = 5000
+
+const TIMED_OUT = Symbol('timed out')
+
 type Options = {
   store: StoreApi<PlanState>
   repository: ProjectRepository
@@ -121,11 +126,48 @@ export function createProjectPersistence({
     })
   }
 
+  /**
+   * Show a saved project that arrives after the app started empty, unless
+   * the project has changed since: the user's work wins over the saved one.
+   */
+  const restoreLate = async (
+    loading: ReturnType<typeof load>,
+    viewport: Size,
+  ) => {
+    const atTimeout = persisted(store.getState())
+    let project: Awaited<typeof loading>
+    try {
+      project = await loading
+    } catch {
+      return // The notice already says the project won't be saved
+    }
+    if (stopped || !sameProject(persisted(store.getState()), atTimeout)) {
+      return project?.plan?.image.close()
+    }
+    if (project) {
+      store.getState().restoreProject(project, viewport)
+      lastSaved = persisted(store.getState())
+    }
+    // Storage works after all
+    if (notice === 'storage-unavailable') notify(null)
+  }
+
   return {
     /** Load the saved project into the store, then start saving changes. */
     restore: async (viewport: Size) => {
+      const loading = load()
+      let giveUp: ReturnType<typeof setTimeout> | undefined
+      const timedOut = new Promise<typeof TIMED_OUT>((resolve) => {
+        giveUp = setTimeout(() => resolve(TIMED_OUT), RESTORE_TIMEOUT_MS)
+      })
       try {
-        const project = await load()
+        const project = await Promise.race([loading, timedOut])
+        if (project === TIMED_OUT) {
+          notify('storage-unavailable')
+          startAutosave()
+          void restoreLate(loading, viewport)
+          return
+        }
         // Stopped while loading: someone else owns the store now
         if (stopped) return project?.plan?.image.close()
         if (project) store.getState().restoreProject(project, viewport)
@@ -136,6 +178,8 @@ export function createProjectPersistence({
             ? 'restore-failed'
             : 'storage-unavailable',
         )
+      } finally {
+        clearTimeout(giveUp)
       }
       startAutosave()
     },

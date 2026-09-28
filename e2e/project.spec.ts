@@ -172,3 +172,25 @@ test('keeps working in memory, with a notice, when storage is unavailable', asyn
   await notice(page).getByRole('button', { name: 'Dismiss' }).click()
   await expect(notice(page)).toBeHidden()
 })
+
+test('starts empty, with a notice, when opening storage hangs', async ({
+  page,
+}) => {
+  await page.addInitScript(() => {
+    // A request that never succeeds nor fails: its events stop here
+    const open = IDBFactory.prototype.open
+    IDBFactory.prototype.open = function (...args) {
+      const request = open.apply(this, args)
+      for (const type of ['success', 'error', 'upgradeneeded', 'blocked']) {
+        request.addEventListener(type, (e) => e.stopImmediatePropagation())
+      }
+      return request
+    }
+  })
+  await page.goto('./')
+
+  // Restoring gives up after 5 s
+  await expect(notice(page)).toHaveText(/won’t be saved/, { timeout: 10_000 })
+  await pickFile(page, widePlan)
+  await expectWidePlanFitted(page)
+})

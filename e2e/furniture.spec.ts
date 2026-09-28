@@ -450,6 +450,70 @@ test.describe('the item panel', () => {
     await expectFurnitureAt(page, 485, 285)
   })
 
+  test('R turns the selected item 15° clockwise, Shift+R counter-clockwise', async ({
+    page,
+  }) => {
+    const rotation = panel(page).getByLabel('Rotation (°)')
+    await page.keyboard.press('r')
+    await page.keyboard.press('r')
+    await expect(rotation).toHaveValue('30')
+
+    await page.keyboard.press('Shift+R')
+    await page.keyboard.press('Shift+R')
+    await page.keyboard.press('Shift+R')
+    await expect(rotation).toHaveValue('345')
+
+    // Each press is its own step
+    await page.keyboard.press('Control+z')
+    await expect(rotation).toHaveValue('0')
+    await page.keyboard.press('Control+z')
+    await expect(rotation).toHaveValue('15')
+  })
+
+  test('R turns an item off the 15° grid onto the next step', async ({
+    page,
+  }) => {
+    const rotation = panel(page).getByLabel('Rotation (°)')
+    await rotation.fill('7')
+    await rotation.press('Enter')
+    await rotation.blur()
+
+    await page.keyboard.press('r')
+    await expect(rotation).toHaveValue('15')
+
+    await rotation.fill('7')
+    await rotation.press('Enter')
+    await rotation.blur()
+
+    await page.keyboard.press('Shift+R')
+    await expect(rotation).toHaveValue('0')
+  })
+
+  test('R with Ctrl, Cmd or Alt, typed into a field or under a dialog does not turn the item', async ({
+    page,
+  }) => {
+    const rotation = panel(page).getByLabel('Rotation (°)')
+    for (const key of ['Alt+r', 'Control+Shift+R', 'Meta+r']) {
+      await page.keyboard.press(key)
+      await expect(rotation).toHaveValue('0')
+    }
+    await panel(page).getByLabel('Name').press('r')
+    await expect(rotation).toHaveValue('0')
+
+    await pickFile(page, tallPlan)
+    const dialog = page.getByRole('dialog', {
+      name: 'Replace the current plan?',
+    })
+    await expect(dialog).toBeVisible()
+    // Not typed into the dialog's buttons, so only the open dialog protects
+    await page.evaluate(() => (document.activeElement as HTMLElement).blur())
+    await page.keyboard.press('r')
+    await page.keyboard.press('Escape')
+
+    await expect(dialog).toBeHidden()
+    await expect(rotation).toHaveValue('0')
+  })
+
   test('editing the width and depth resizes the item around its centre', async ({
     page,
   }) => {

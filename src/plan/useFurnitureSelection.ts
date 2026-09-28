@@ -1,7 +1,7 @@
 import type { KonvaEventObject } from 'konva/lib/Node'
 import { useEffect, useRef } from 'react'
 import { isDialogOpen } from '../dialogs'
-import { distance, type NudgeDirection } from './geometry'
+import { distance, stepRotation, type NudgeDirection } from './geometry'
 import { planStore } from './planStore'
 import { isControl } from './useViewNavigation'
 import type { Point } from './zoomView'
@@ -31,7 +31,8 @@ type FurnitureSelectionHandlers = {
 /**
  * Selection input for furniture: clicking empty canvas or pressing Esc
  * deselects, arrow keys nudge the selected item (1 cm, or 10 cm with Shift),
- * and Delete (or Backspace) deletes the selected item; keys typed into a
+ * R turns it a rotation step clockwise (counter-clockwise with Shift), and
+ * Delete (or Backspace) deletes the selected item; keys typed into a
  * control or pressed while a dialog is open are left alone. Items select themselves when pressed. Returns
  * handlers for the Stage.
  */
@@ -44,7 +45,10 @@ export function useFurnitureSelection(): FurnitureSelectionHandlers {
       const deselecting = e.key === 'Escape'
       const deleting = e.key === 'Delete' || e.key === 'Backspace'
       const direction = NUDGE_KEYS[e.key]
-      if (!deselecting && !deleting && !direction) return
+      // Ctrl/Cmd+R must still reload
+      const rotating =
+        e.key.toLowerCase() === 'r' && !e.ctrlKey && !e.metaKey && !e.altKey
+      if (!deselecting && !deleting && !direction && !rotating) return
       if (isControl(e.target)) return
       if (isDialogOpen()) return
       const store = planStore.getState()
@@ -56,7 +60,17 @@ export function useFurnitureSelection(): FurnitureSelectionHandlers {
           direction,
           e.shiftKey ? LARGE_NUDGE_CM : NUDGE_CM,
         )
-      else store.deleteSelectedFurniture()
+      else if (rotating) {
+        const item = store.furniture.find((f) => f.id === store.selectedId)
+        if (item)
+          store.rotateFurniture(
+            item.id,
+            stepRotation(
+              item.rotationDeg,
+              e.shiftKey ? 'counterclockwise' : 'clockwise',
+            ),
+          )
+      } else store.deleteSelectedFurniture()
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)

@@ -7,6 +7,7 @@ import {
   snapRotation,
   snapToAngle,
   snapToAngleNear,
+  stepRotation,
 } from './geometry'
 
 describe('distance', () => {
@@ -106,6 +107,28 @@ describe('snapRotation', () => {
     expect(snapRotation(40.5, null)).toBe(40.5)
     expect(snapRotation(-10, null)).toBe(350)
     expect(snapRotation(360, null)).toBe(0)
+  })
+})
+
+describe('stepRotation', () => {
+  it('turns 15° clockwise, or counter-clockwise', () => {
+    expect(stepRotation(0, 'clockwise')).toBe(15)
+    expect(stepRotation(90, 'clockwise')).toBe(105)
+    expect(stepRotation(90, 'counterclockwise')).toBe(75)
+  })
+
+  it('turns an angle off the 15° grid onto the next step that way', () => {
+    expect(stepRotation(7, 'clockwise')).toBe(15)
+    expect(stepRotation(7, 'counterclockwise')).toBe(0)
+    expect(stepRotation(40.5, 'clockwise')).toBe(45)
+    expect(stepRotation(40.5, 'counterclockwise')).toBe(30)
+  })
+
+  it('keeps the angle within 0–360°', () => {
+    expect(stepRotation(345, 'clockwise')).toBe(0)
+    expect(stepRotation(0, 'counterclockwise')).toBe(345)
+    expect(stepRotation(352, 'clockwise')).toBe(0)
+    expect(stepRotation(3, 'counterclockwise')).toBe(0)
   })
 })
 

@@ -53,6 +53,23 @@ export function snapRotation(
   return (((snapped % 360) + 360) % 360) + 0
 }
 
+/** A way the R key turns an item. */
+export type RotationDirection = 'clockwise' | 'counterclockwise'
+
+/**
+ * `deg` turned to the next `ROTATION_STEP` in `direction`, within [0, 360):
+ * an angle off the grid lands on the grid (7° goes to 15° or 0°).
+ */
+export function stepRotation(
+  deg: number,
+  direction: RotationDirection,
+): number {
+  const steps = deg / ROTATION_STEP
+  const next =
+    direction === 'clockwise' ? Math.floor(steps) + 1 : Math.ceil(steps) - 1
+  return snapRotation(next * ROTATION_STEP)
+}
+
 /**
  * A clockwise rotation typed by the user, in degrees, brought within
  * [0, 360) (so 370° is 10° and -90° is 270°), or null if the text is not an

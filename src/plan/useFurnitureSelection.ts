@@ -24,6 +24,8 @@ const NUDGE_KEYS: Partial<Record<string, NudgeDirection>> = {
 type FurnitureSelectionHandlers = {
   onPointerDown: (e: KonvaEventObject<PointerEvent>) => void
   onPointerUp: (e: KonvaEventObject<PointerEvent>) => void
+  /** Forget the press under way, so its release does not deselect. */
+  cancelPress: () => void
 }
 
 /**
@@ -62,6 +64,7 @@ export function useFurnitureSelection(): FurnitureSelectionHandlers {
 
   const onPointerDown = (e: KonvaEventObject<PointerEvent>) => {
     const onEmptyCanvas = e.target === e.target.getStage()
+    if (!e.evt.isPrimary) return
     pressedAt.current =
       onEmptyCanvas && e.evt.button === 0
         ? { x: e.evt.clientX, y: e.evt.clientY }
@@ -76,5 +79,9 @@ export function useFurnitureSelection(): FurnitureSelectionHandlers {
     if (moved < CLICK_TOLERANCE) planStore.getState().clearSelection()
   }
 
-  return { onPointerDown, onPointerUp }
+  const cancelPress = () => {
+    pressedAt.current = null
+  }
+
+  return { onPointerDown, onPointerUp, cancelPress }
 }

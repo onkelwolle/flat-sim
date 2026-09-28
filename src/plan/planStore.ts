@@ -147,6 +147,8 @@ export type PlanState = {
   stretchMeasurementTo: (point: Point) => void
   /** Fix the end of the measurement being stretched. */
   finishMeasurementAt: (point: Point) => void
+  /** Drop the measurement being stretched, if any; the tape stays active. */
+  dropMeasurementInProgress: () => void
   /** Leave the measuring tape; its measurement disappears. */
   stopMeasuring: () => void
   /** Add an item centred in the view; only possible once the scale is set. */
@@ -431,6 +433,10 @@ export function createPlanStore() {
             stretching: false,
           },
         })
+      },
+      dropMeasurementInProgress: () => {
+        if (get().tape?.stretching)
+          set({ tape: { measurement: null, stretching: false } })
       },
       stopMeasuring: () => set({ tape: null }),
       addFurniture: (spec, viewport) => {

@@ -27,6 +27,8 @@ type MeasuringTapeHandlers = {
   onCanvasPress: (e: PointerEvent) => void
   onPointerMove: (e: PointerEvent) => void
   onPointerUp: (e: PointerEvent) => void
+  /** Drop the measurement being drawn, if any; the tape stays active. */
+  cancelMeasurement: () => void
 }
 
 /**
@@ -90,5 +92,10 @@ export function useMeasuringTape(
       planStore.getState().finishMeasurementAt(at)
   }
 
-  return { onCanvasPress, onPointerMove, onPointerUp }
+  const cancelMeasurement = () => {
+    pressedAt.current = null
+    planStore.getState().dropMeasurementInProgress()
+  }
+
+  return { onCanvasPress, onPointerMove, onPointerUp, cancelMeasurement }
 }

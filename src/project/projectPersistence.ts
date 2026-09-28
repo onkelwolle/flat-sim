@@ -24,9 +24,20 @@ export const RESTORE_TIMEOUT_MS = 5000
 
 const TIMED_OUT = Symbol('timed out')
 
+/**
+ * The browser's storage manager (`navigator.storage`), as far as it is there:
+ * older browsers lack it or some of its methods.
+ */
+export type PersistentStorage = {
+  persisted?: () => Promise<boolean>
+  persist?: () => Promise<boolean>
+}
+
 type Options = {
   store: StoreApi<PlanState>
   repository: ProjectRepository
+  /** Asked to keep saved data from eviction on the first save. */
+  storage?: PersistentStorage
   /** Decode a saved plan image. */
   decodeImage: (image: Blob) => Promise<ImageBitmap>
   /** Called with a notice to show, or null once there is none. */
@@ -46,6 +57,7 @@ const toSaved = ({ plan, calibration, furniture }: Project): SavedProject => ({
 export function createProjectPersistence({
   store,
   repository,
+  storage,
   decodeImage,
   onNotice,
 }: Options) {
@@ -54,6 +66,7 @@ export function createProjectPersistence({
   let notice: ProjectNotice | null = null
   let stopped = false
   let unsubscribe = () => {}
+  let askedToPersist = false
 
   const notify = (next: ProjectNotice | null) => {
     if (stopped || next === notice) return
@@ -66,6 +79,19 @@ export function createProjectPersistence({
     if (notice !== 'storage-unavailable') notify('save-failed')
   }
 
+  /**
+   * Ask the browser not to evict the saved project, unless it already won't.
+   * Nothing changes for the user if it can't or won't: saving works either way.
+   */
+  const askToPersist = async () => {
+    try {
+      if (await storage?.persisted?.()) return
+      await storage?.persist?.()
+    } catch {
+      // Best-effort storage it stays
+    }
+  }
+
   const save = async () => {
     timer = undefined
     const project = projectOf(store.getState())
@@ -73,6 +99,10 @@ export function createProjectPersistence({
     lastSaved = project
     try {
       await repository.save(toSaved(project))
+      if (!askedToPersist) {
+        askedToPersist = true
+        void askToPersist()
+      }
       // Storage works (again), so any notice about it no longer holds
       if (notice === 'save-failed' || notice === 'storage-unavailable') {
         notify(null)

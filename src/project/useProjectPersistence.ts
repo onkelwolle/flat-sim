@@ -25,6 +25,8 @@ export function useProjectPersistence(viewport: Size) {
     const current = createProjectPersistence({
       store: planStore,
       repository: createIndexedDbProjectRepository(),
+      // Missing outside secure contexts, whatever the DOM types say
+      storage: navigator.storage as StorageManager | undefined,
       decodeImage: (image) => createImageBitmap(image),
       onNotice: setNotice,
     })

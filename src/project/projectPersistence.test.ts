@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createPlanStore, type Plan } from '../plan/planStore'
 import {
   createProjectPersistence,
+  type PersistentStorage,
   type ProjectNotice,
 } from './projectPersistence'
 import {
@@ -82,12 +83,31 @@ class FakeRepository implements ProjectRepository {
   }
 }
 
-const setUp = (repository = new FakeRepository()) => {
+/** The browser's storage manager, granting or denying persistent storage. */
+class FakeStorage {
+  persistRequests = 0
+  alreadyPersisted = false
+  grants = true
+  async persisted() {
+    return this.alreadyPersisted
+  }
+  async persist() {
+    this.persistRequests++
+    return this.grants
+  }
+}
+
+const setUp = (
+  repository = new FakeRepository(),
+  /** null stands for a browser without a storage manager. */
+  storage: PersistentStorage | null = new FakeStorage(),
+) => {
   const store = createPlanStore()
   const notices: (ProjectNotice | null)[] = []
   const persistence = createProjectPersistence({
     store,
     repository,
+    storage: storage ?? undefined,
     decodeImage,
     onNotice: (notice) => notices.push(notice),
   })
@@ -432,5 +452,87 @@ describe('storage failures', () => {
     await vi.advanceTimersByTimeAsync(500)
     expect(lastNotice()).toBeNull()
     expect(repository.project?.plan?.name).toBe('flat.png')
+  })
+})
+
+const calibrate = (store: ReturnType<typeof createPlanStore>) => {
+  store.getState().startCalibration()
+  store.getState().placeCalibrationPoint({ x: 100, y: 100 })
+  store.getState().placeCalibrationPoint({ x: 300, y: 100 })
+  store.getState().finishCalibration(400)
+}
+
+describe('asking the browser to keep the project', () => {
+  it('asks for persistent storage on the first save, and only once', async () => {
+    const storage = new FakeStorage()
+    const { store, repository, persistence } = setUp(
+      new FakeRepository(),
+      storage,
+    )
+    await persistence.restore(viewport)
+    expect(storage.persistRequests).toBe(0)
+
+    store.getState().offerPlan(plan('flat.png'), viewport)
+    await vi.advanceTimersByTimeAsync(500)
+    expect(storage.persistRequests).toBe(1)
+
+    calibrate(store)
+    await vi.advanceTimersByTimeAsync(500)
+    expect(repository.saves).toHaveLength(2)
+    expect(storage.persistRequests).toBe(1)
+  })
+
+  it('does not ask when the browser already keeps it', async () => {
+    const storage = new FakeStorage()
+    storage.alreadyPersisted = true
+    const { store, repository, persistence } = setUp(
+      new FakeRepository(),
+      storage,
+    )
+    await persistence.restore(viewport)
+
+    store.getState().offerPlan(plan('flat.png'), viewport)
+    await vi.advanceTimersByTimeAsync(500)
+    expect(repository.saves).toHaveLength(1)
+    expect(storage.persistRequests).toBe(0)
+  })
+
+  it.each([
+    ['the browser has no storage manager', null],
+    ['the browser cannot persist storage', {}],
+    [
+      'the browser denies it',
+      { persisted: async () => false, persist: async () => false },
+    ],
+    [
+      'checking fails',
+      {
+        persisted: () => Promise.reject(new Error('SecurityError')),
+        persist: async () => true,
+      },
+    ],
+    [
+      'asking throws',
+      {
+        persisted: async () => false,
+        persist: () => {
+          throw new Error('SecurityError')
+        },
+      },
+    ],
+  ])('keeps saving without a notice when %s', async (_, storage) => {
+    const { store, repository, persistence, notices } = setUp(
+      new FakeRepository(),
+      storage,
+    )
+    await persistence.restore(viewport)
+
+    store.getState().offerPlan(plan('flat.png'), viewport)
+    await vi.advanceTimersByTimeAsync(500)
+    calibrate(store)
+    await vi.advanceTimersByTimeAsync(500)
+
+    expect(repository.saves).toHaveLength(2)
+    expect(notices).toEqual([])
   })
 })

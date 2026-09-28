@@ -222,6 +222,68 @@ test('from 600 px wide the toolbar stays at the top', async ({ page }) => {
   ).toBeVisible()
 })
 
+/** Expect `dialog` to fill the screen, its buttons finger-sized and on it. */
+const expectFullScreen = async (
+  dialog: Locator,
+  buttons: string[],
+  height = 844,
+) => {
+  expect(await box(dialog)).toEqual({ x: 0, y: 0, width: 390, height })
+  for (const name of buttons) {
+    const button = await box(dialog.getByRole('button', { name, exact: true }))
+    expect(button.height).toBeGreaterThanOrEqual(44)
+    expect(button.x).toBeGreaterThanOrEqual(0)
+    expect(button.x + button.width).toBeLessThanOrEqual(390)
+    expect(button.y + button.height).toBeLessThanOrEqual(height)
+  }
+}
+
+test('the length, add furniture and confirm dialogs fill the screen', async ({
+  page,
+}) => {
+  await pickFile(page, widePlan)
+  await bottomBar(page).getByRole('button', { name: 'Calibrate' }).click()
+  await page.touchscreen.tap(97.5, 422)
+  await page.touchscreen.tap(292.5, 422)
+  await expectFullScreen(lengthDialog(page), ['Cancel', 'Set scale'])
+  await lengthDialog(page).getByLabel('Length').fill('4')
+  await lengthDialog(page).getByRole('button', { name: 'Set scale' }).click()
+
+  await bottomBar(page).getByRole('button', { name: 'Add item' }).click()
+  await expectFullScreen(addDialog(page), ['Cancel', 'Add'])
+  // Its buttons look like the other dialogs', not like the bar's
+  const fontSize = (name: string) =>
+    addDialog(page)
+      .getByRole('button', { name, exact: true })
+      .evaluate((b) => getComputedStyle(b).fontSize)
+  expect(await fontSize('Add')).toBe('16px')
+  await addDialog(page).getByRole('button', { name: 'Cancel' }).click()
+
+  await more(page).click()
+  await menu(page).getByRole('menuitem', { name: 'New project' }).click()
+  await expectFullScreen(
+    page.getByRole('dialog', { name: 'Start a new project?' }),
+    ['Cancel', 'Start new project'],
+  )
+})
+
+test('from 600 px wide dialogs stay a card in the middle', async ({ page }) => {
+  await page.setViewportSize({ width: 600, height: 844 })
+  await pickFile(page, widePlan)
+  await page
+    .locator('.toolbar')
+    .getByRole('button', { name: 'New project' })
+    .click()
+
+  const dialog = await box(
+    page.getByRole('dialog', { name: 'Start a new project?' }),
+  )
+  expect(dialog.width).toBeLessThan(600 - 32)
+  expect(dialog.height).toBeLessThan(844 / 2)
+  expect(dialog.x + dialog.width / 2).toBeCloseTo(300, 0)
+  expect(dialog.y + dialog.height / 2).toBeCloseTo(422, 0)
+})
+
 test('the selected item’s panel is a sheet on the bar, under the status', async ({
   page,
 }) => {
@@ -354,5 +416,42 @@ test.describe('with the on-screen keyboard', () => {
     const bar = await box(bottomBar(page))
     expect(sheet.y + sheet.height).toBeLessThanOrEqual(bar.y)
     expect(sheet.y + sheet.height).toBeGreaterThan(bar.y - 12)
+  })
+
+  test('a full-screen dialog ends at it, its buttons above it', async ({
+    page,
+  }) => {
+    await pickFile(page, widePlan)
+    await bottomBar(page).getByRole('button', { name: 'Calibrate' }).click()
+    await page.touchscreen.tap(97.5, 422)
+    await page.touchscreen.tap(292.5, 422)
+    const length = lengthDialog(page).getByLabel('Length')
+    await length.tap()
+
+    await showKeyboard(page, 300)
+
+    await expect
+      .poll(async () => (await box(lengthDialog(page))).height)
+      .toBe(844 - 300)
+    await expectFullScreen(lengthDialog(page), ['Cancel', 'Set scale'], 544)
+    await expect(length).toBeFocused()
+    const field = await box(length)
+    expect(field.y + field.height).toBeLessThanOrEqual(544)
+    await length.fill('4')
+    await lengthDialog(page).getByRole('button', { name: 'Set scale' }).tap()
+    await expect(lengthDialog(page)).toBeHidden()
+
+    // The add furniture form too, though it opens from inside the bar
+    await showKeyboard(page, 0)
+    await bottomBar(page).getByRole('button', { name: 'Add item' }).click()
+    await showKeyboard(page, 300)
+    await expect
+      .poll(async () => (await box(addDialog(page))).height)
+      .toBe(844 - 300)
+    await expectFullScreen(addDialog(page), ['Cancel', 'Add'], 544)
+
+    // Closing the keyboard gives the dialog the whole screen again
+    await showKeyboard(page, 0)
+    await expect.poll(async () => (await box(addDialog(page))).height).toBe(844)
   })
 })

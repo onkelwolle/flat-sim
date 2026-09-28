@@ -1,5 +1,6 @@
 import { useId, useState, type CSSProperties, type MouseEvent } from 'react'
 import { useModalDialog } from '../dialogs'
+import { DialogBackdrop } from '../DialogBackdrop'
 import type { Size } from '../useViewportSize'
 import {
   planStore,
@@ -333,7 +334,7 @@ function AddFurnitureDialog({
   )
 
   return (
-    <div className="backdrop">
+    <DialogBackdrop>
       <form
         role="dialog"
         aria-modal="true"
@@ -378,7 +379,7 @@ function AddFurnitureDialog({
           </button>
         </div>
       </form>
-    </div>
+    </DialogBackdrop>
   )
 }
 

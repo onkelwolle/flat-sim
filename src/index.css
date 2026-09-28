@@ -374,6 +374,49 @@ body {
   margin-top: 1rem;
 }
 
+/*
+ * Phone-narrow screens: a dialog fills the screen (above the on-screen
+ * keyboard, where the backdrop ends), clear of the safe-area insets. Its
+ * buttons share the bottom edge, in reach of a thumb, and stay there while
+ * the rest scrolls
+ */
+@media (width < 600px) {
+  .dialog {
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    max-width: none;
+    height: 100%;
+    overflow-y: auto;
+    padding: max(1.25rem, env(safe-area-inset-top))
+      max(1rem, env(safe-area-inset-right)) 0
+      max(1rem, env(safe-area-inset-left));
+    border-radius: 0;
+    box-shadow: none;
+  }
+
+  .dialog-actions {
+    position: sticky;
+    bottom: 0;
+    margin-top: auto;
+    padding: 1rem 0 max(1rem, env(safe-area-inset-bottom));
+    background: #fff;
+  }
+
+  .dialog-actions .button {
+    flex: 1;
+  }
+
+  .furniture-fields {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .furniture-fields > :first-child {
+    grid-column: 1 / -1;
+  }
+}
+
 .notice {
   position: fixed;
   bottom: 56px;

@@ -1,5 +1,6 @@
 import { useId, type ReactNode } from 'react'
 import { useModalDialog } from '../dialogs'
+import { DialogBackdrop } from '../DialogBackdrop'
 
 /** In-page yes/no prompt; Escape or Cancel keeps things as they are. */
 export function ConfirmDialog({
@@ -20,7 +21,7 @@ export function ConfirmDialog({
   useModalDialog(onCancel)
 
   return (
-    <div className="backdrop">
+    <DialogBackdrop>
       <div
         role="dialog"
         aria-modal="true"
@@ -38,6 +39,6 @@ export function ConfirmDialog({
           </button>
         </div>
       </div>
-    </div>
+    </DialogBackdrop>
   )
 }

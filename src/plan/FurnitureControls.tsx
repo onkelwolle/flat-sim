@@ -13,13 +13,16 @@ import { parseLength } from './scale'
 
 /**
  * Toolbar button that opens the form for adding an item of furniture.
- * Disabled until the scale is set.
+ * Disabled until the scale is set; `compact` shortens its label for the
+ * phone's bottom bar.
  */
 export function AddFurnitureButton({
   viewport,
+  compact = false,
   onMouseDown,
 }: {
   viewport: Size
+  compact?: boolean
   onMouseDown: (e: MouseEvent) => void
 }) {
   const calibrated = usePlanStore((s) => selectScale(s) !== null)
@@ -35,7 +38,7 @@ export function AddFurnitureButton({
         onMouseDown={onMouseDown}
         onClick={() => setOpen(true)}
       >
-        Add furniture
+        {compact ? 'Add item' : 'Add furniture'}
       </button>
       {open && (
         <AddFurnitureDialog

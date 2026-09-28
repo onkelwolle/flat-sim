@@ -24,3 +24,9 @@ export const useCoarsePointer = () => useMediaQuery('(any-pointer: coarse)')
  * screen), which suggests a keyboard too: worth hints about Shift and Esc.
  */
 export const useFinePointer = () => useMediaQuery('(any-pointer: fine)')
+
+/**
+ * Whether the screen is phone-narrow (below 600 px): the tools move from the
+ * top toolbar to a bottom bar. The CSS switches layout at the same width.
+ */
+export const usePhoneLayout = () => useMediaQuery('(width < 600px)')

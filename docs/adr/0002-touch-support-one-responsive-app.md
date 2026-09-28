@@ -15,6 +15,7 @@ flat-sim was built for mouse, keyboard and trackpad. Users also want to plan on 
 - Two fingers always pan and pinch-zoom the **View**, whatever tool is active or item is selected: the touch replacement for space+drag. A second finger cancels what the first was doing
 - The stage sets `touch-action: none`; the browser never zooms or scrolls the page from the canvas, and there is no double-tap zoom
 - Tablet first; phone layout follows as separate issues
+- Layout follows the viewport's width, never input handling: below 600 px the main tools move to a bottom bar (the rest into its "⋯" menu), clear of the safe-area insets
 - Touch is tested in a touch-emulated Chromium tablet Playwright project, with multi-finger gestures driven through CDP `Input.dispatchTouchEvent`; gesture maths is unit-tested
 
 ## Considered alternatives

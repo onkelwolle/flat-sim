@@ -257,6 +257,41 @@ describe('autosave', () => {
     expect(lastSavedIds()).toEqual(['item-4'])
     expect(repository.saves).toHaveLength(3)
   })
+
+  it('saves the project as undo and redo leave it', async () => {
+    const { store, repository, persistence } = setUp(new FakeRepository(saved))
+    await persistence.restore(viewport)
+    store.getState().moveFurniture('item-4', { x: 1, y: 2 })
+    await vi.advanceTimersByTimeAsync(500)
+
+    store.getState().undo(viewport)
+    await vi.advanceTimersByTimeAsync(500)
+    expect(repository.saves.at(-1)?.furniture).toEqual(saved.furniture)
+
+    store.getState().redo(viewport)
+    await vi.advanceTimersByTimeAsync(500)
+    expect(repository.saves.at(-1)?.furniture[0]?.position).toEqual({
+      x: 1,
+      y: 2,
+    })
+  })
+})
+
+describe('undo after restoring', () => {
+  it('has nothing to undo from before a saved project arrives late', async () => {
+    const repository = new FakeRepository(saved)
+    repository.loadHangs = true
+    const { store, persistence } = setUp(repository)
+    const restoring = persistence.restore(viewport)
+    await vi.advanceTimersByTimeAsync(5000)
+    await restoring
+
+    repository.finishLoad()
+    await vi.advanceTimersByTimeAsync(2000)
+
+    expect(store.getState().plan?.name).toBe('flat.png')
+    expect(store.getState().nextUndo).toBeNull()
+  })
 })
 
 describe('a new project', () => {

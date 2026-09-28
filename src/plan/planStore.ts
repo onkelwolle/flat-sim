@@ -2,6 +2,7 @@ import { useStore } from 'zustand'
 import { createStore } from 'zustand/vanilla'
 import type { Size } from '../useViewportSize'
 import { fitToViewport, type View } from './fitToViewport'
+import { createHistory } from './history'
 import {
   distance,
   nudgeOffset,
@@ -77,6 +78,14 @@ export type Project = {
   furniture: Furniture[]
 }
 
+/** An edit to the project that can be undone, as the user would name it. */
+export type Step = {
+  /** What the step did, such as "move Sofa". */
+  label: string
+  /** The item the step touched, or null if it concerned no single item. */
+  itemId: string | null
+}
+
 export type PlanState = {
   plan: Plan | null
   /** The plan's calibration; null until the scale is set. */
@@ -95,6 +104,17 @@ export type PlanState = {
   /** A new plan waiting for the user to confirm it replaces `plan`. */
   pendingPlan: Plan | null
   view: View
+  /** The step undo would take back, or null if there is none. */
+  nextUndo: Step | null
+  /** The step redo would take again, or null if there is none. */
+  nextRedo: Step | null
+  /**
+   * Take back the last edit to the project, selecting the item it touched.
+   * With calibration points placed, only leaves the calibrate tool instead.
+   */
+  undo: (viewport: Size) => void
+  /** Make the last undone edit again, selecting the item it touched. */
+  redo: (viewport: Size) => void
   /** Replace everything with a saved project, fitted to the viewport. */
   restoreProject: (project: Project, viewport: Size) => void
   /** Drop the plan, its calibration and all furniture. */
@@ -170,200 +190,331 @@ const blankProject = {
 /** The number in an item id (`item-7` → 7), or 0 if it has none. */
 const idNumber = (id: string) => Number(/^item-(\d+)$/.exec(id)?.[1] ?? 0)
 
+/** The parts of the state that make up the project. */
+export const projectOf = ({
+  plan,
+  calibration,
+  furniture,
+}: Project): Project => ({ plan, calibration, furniture })
+
+/**
+ * Whether two projects are the same. Each part is replaced on change, never
+ * mutated, so comparing references tells.
+ */
+export const sameProject = (a: Project, b: Project) =>
+  a.plan === b.plan &&
+  a.calibration === b.calibration &&
+  a.furniture === b.furniture
+
 export function createPlanStore() {
   let lastId = 0
-  return createStore<PlanState>()((set, get) => ({
-    ...blankProject,
-    view: { scale: 1, x: 0, y: 0 },
-    restoreProject: ({ plan, calibration, furniture }, viewport) => {
-      const old = get()
-      // New items must not reuse a restored item's id
-      lastId = Math.max(0, ...furniture.map((f) => idNumber(f.id)))
-      set({
-        ...blankProject,
-        plan,
-        calibration,
-        furniture,
-        view: plan ? fitToViewport(plan, viewport) : old.view,
-      })
-      if (old.plan !== plan) old.plan?.image.close()
-      old.pendingPlan?.image.close()
-    },
-    newProject: () => {
-      const { plan, pendingPlan } = get()
-      lastId = 0
-      set(blankProject)
-      plan?.image.close()
-      pendingPlan?.image.close()
-    },
-    offerPlan: (plan, viewport) => {
-      const { plan: current, pendingPlan } = get()
-      if (!current) return set({ plan, view: fitToViewport(plan, viewport) })
-      pendingPlan?.image.close()
-      set({ pendingPlan: plan })
-    },
-    confirmReplace: (viewport) => {
-      const { plan: old, pendingPlan: plan } = get()
-      if (!plan) return
-      set({
-        plan,
-        pendingPlan: null,
-        view: fitToViewport(plan, viewport),
-        // A new image has its own scale
-        calibration: null,
-        calibrationDraft: null,
-        tape: null,
-        // Furniture was placed against the old image
-        furniture: [],
-        selectedId: null,
-      })
-      // Released after the swap so nothing renders a closed bitmap
-      old?.image.close()
-    },
-    cancelReplace: () => {
-      get().pendingPlan?.image.close()
-      set({ pendingPlan: null })
-    },
-    zoomAt: (at, factor, viewport) => {
-      const { plan, view } = get()
-      if (!plan) return
-      const fit = fitToViewport(plan, viewport).scale
-      set({
-        view: zoomView(view, at, factor, {
-          min: fit * MIN_ZOOM,
-          max: fit * MAX_ZOOM,
-        }),
-      })
-    },
-    panBy: (delta) => {
-      const { plan, view } = get()
-      if (!plan) return
-      set({ view: { ...view, x: view.x + delta.x, y: view.y + delta.y } })
-    },
-    fitToScreen: (viewport) => {
-      const { plan } = get()
-      if (plan) set({ view: fitToViewport(plan, viewport) })
-    },
-    startCalibration: () => {
-      // One tool at a time
-      if (get().plan)
-        set({ calibrationDraft: [], tape: null, selectedId: null })
-    },
-    placeCalibrationPoint: (point) => {
-      const { calibrationDraft: draft } = get()
-      if (!draft || draft.length >= 2) return
-      const [start] = draft
-      // A zero-length line cannot set a scale
-      if (start && start.x === point.x && start.y === point.y) return
-      set({ calibrationDraft: [...draft, point] })
-    },
-    finishCalibration: (lengthCm) => {
-      const [start, end] = get().calibrationDraft ?? []
-      if (!start || !end || !(lengthCm > 0) || !isFinite(lengthCm)) return
-      set({
-        calibration: {
-          start,
-          end,
-          lengthCm,
-          scale: scaleFromLine(start, end, lengthCm),
-        },
-        calibrationDraft: null,
-      })
-    },
-    cancelCalibration: () => set({ calibrationDraft: null }),
-    startMeasuring: () => {
-      if (!selectScale(get())) return
-      set({
-        tape: { measurement: null, stretching: false },
-        calibrationDraft: null,
-        selectedId: null,
-      })
-    },
-    startMeasurementAt: (point) => {
-      if (!get().tape) return
-      set({
-        tape: { measurement: { start: point, end: point }, stretching: true },
-      })
-    },
-    stretchMeasurementTo: (point) => {
-      const { tape } = get()
-      if (!tape?.measurement || !tape.stretching) return
-      set({
-        tape: { ...tape, measurement: { ...tape.measurement, end: point } },
-      })
-    },
-    finishMeasurementAt: (point) => {
-      const { tape } = get()
-      if (!tape?.measurement || !tape.stretching) return
-      const { start } = tape.measurement
-      // Nothing to measure yet; the end keeps following the pointer
-      if (start.x === point.x && start.y === point.y) return
-      set({
-        tape: {
-          measurement: { ...tape.measurement, end: point },
-          stretching: false,
-        },
-      })
-    },
-    stopMeasuring: () => set({ tape: null }),
-    addFurniture: (spec, viewport) => {
-      const { furniture, view } = get()
-      if (!selectScale(get())) return
-      const centre = { x: viewport.width / 2, y: viewport.height / 2 }
-      const item: Furniture = {
-        ...spec,
-        id: `item-${++lastId}`,
-        position: screenToPlan(view, centre),
-        rotationDeg: 0,
+  const history = createHistory<Project, Step>()
+  // Plan images the project or its history has held and not yet released
+  const images = new Set<ImageBitmap>()
+
+  return createStore<PlanState>()((set, get) => {
+    /** What undo and redo would do next, for the state. */
+    const nextSteps = () => ({
+      nextUndo: history.nextUndo(),
+      nextRedo: history.nextRedo(),
+    })
+
+    /**
+     * Release every plan image neither the project nor any step refers to
+     * any more; call after either changes.
+     */
+    const releaseImages = () => {
+      const held = new Set<ImageBitmap>()
+      for (const { plan } of [get(), ...history.states()]) {
+        if (plan) held.add(plan.image)
       }
+      for (const image of images) {
+        // Released after the swap so nothing renders a closed bitmap
+        if (!held.has(image)) image.close()
+      }
+      images.clear()
+      held.forEach((image) => images.add(image))
+    }
+
+    /**
+     * Apply `change` as one undoable step; runs of steps with the same
+     * `mergeKey` in quick succession undo as one. A change that leaves the
+     * project as it was is no step.
+     */
+    const edit = (
+      step: Step,
+      change: Partial<PlanState>,
+      mergeKey?: string,
+    ) => {
+      const before = projectOf(get())
+      set(change)
+      if (sameProject(before, projectOf(get()))) return
+      history.record(before, step, mergeKey)
+      set(nextSteps())
+      releaseImages()
+    }
+
+    /** Show `project` as undo or redo left it, after `step`. */
+    const travel = (project: Project, step: Step, viewport: Size) => {
+      const { plan, tape, calibrationDraft, view } = get()
+      // Tools and selection exclude each other: an active tool stays
+      const toolActive = tape !== null || calibrationDraft !== null
+      const touched = project.furniture.some((f) => f.id === step.itemId)
       set({
-        furniture: [...furniture, item],
-        // Selecting leaves any tool, so the new item is ready to work on
-        ...selectItem(item.id),
+        ...project,
+        selectedId: touched && !toolActive ? step.itemId : null,
+        // Measuring needs a scale
+        tape: project.calibration ? tape : null,
+        view:
+          project.plan && project.plan !== plan
+            ? fitToViewport(project.plan, viewport)
+            : view,
+        ...nextSteps(),
       })
-    },
-    selectFurniture: (id) => {
-      if (get().furniture.some((f) => f.id === id)) set(selectItem(id))
-    },
-    clearSelection: () => set({ selectedId: null }),
-    deleteSelectedFurniture: () => {
-      const { furniture, selectedId } = get()
-      if (!selectedId) return
-      set({
-        furniture: furniture.filter((f) => f.id !== selectedId),
-        selectedId: null,
-      })
-    },
-    moveFurniture: (id, position) =>
-      set({ furniture: updateItem(get().furniture, id, { position }) }),
-    renameFurniture: (id, name) => {
-      const trimmed = name.trim()
-      if (!trimmed) return
-      set({ furniture: updateItem(get().furniture, id, { name: trimmed }) })
-    },
-    rotateFurniture: (id, deg) =>
-      set({
-        furniture: updateItem(get().furniture, id, {
-          rotationDeg: snapRotation(deg, null),
+      releaseImages()
+    }
+
+    return {
+      ...blankProject,
+      view: { scale: 1, x: 0, y: 0 },
+      nextUndo: null,
+      nextRedo: null,
+      undo: (viewport) => {
+        // The unfinished line goes first, as with Esc
+        if (get().calibrationDraft?.length) return get().cancelCalibration()
+        const entry = history.undo(projectOf(get()))
+        if (entry) travel(entry.state, entry.step, viewport)
+      },
+      redo: (viewport) => {
+        const entry = history.redo(projectOf(get()))
+        if (entry) travel(entry.state, entry.step, viewport)
+      },
+      restoreProject: ({ plan, calibration, furniture }, viewport) => {
+        const old = get()
+        // New items must not reuse a restored item's id
+        lastId = Math.max(0, ...furniture.map((f) => idNumber(f.id)))
+        set({
+          ...blankProject,
+          plan,
+          calibration,
+          furniture,
+          view: plan ? fitToViewport(plan, viewport) : old.view,
+        })
+        // Undo starts afresh with the restored project
+        history.clear()
+        set(nextSteps())
+        releaseImages()
+        old.pendingPlan?.image.close()
+      },
+      newProject: () => {
+        const { pendingPlan } = get()
+        lastId = 0
+        set(blankProject)
+        // A new project cannot be undone
+        history.clear()
+        set(nextSteps())
+        releaseImages()
+        pendingPlan?.image.close()
+      },
+      offerPlan: (plan, viewport) => {
+        const { plan: current, pendingPlan } = get()
+        if (!current) {
+          set({ plan, view: fitToViewport(plan, viewport) })
+          return releaseImages()
+        }
+        pendingPlan?.image.close()
+        set({ pendingPlan: plan })
+      },
+      confirmReplace: (viewport) => {
+        const { pendingPlan: plan } = get()
+        if (!plan) return
+        edit(
+          { label: 'replace plan', itemId: null },
+          {
+            plan,
+            pendingPlan: null,
+            view: fitToViewport(plan, viewport),
+            // A new image has its own scale
+            calibration: null,
+            calibrationDraft: null,
+            tape: null,
+            // Furniture was placed against the old image
+            furniture: [],
+            selectedId: null,
+          },
+        )
+      },
+      cancelReplace: () => {
+        get().pendingPlan?.image.close()
+        set({ pendingPlan: null })
+      },
+      zoomAt: (at, factor, viewport) => {
+        const { plan, view } = get()
+        if (!plan) return
+        const fit = fitToViewport(plan, viewport).scale
+        set({
+          view: zoomView(view, at, factor, {
+            min: fit * MIN_ZOOM,
+            max: fit * MAX_ZOOM,
+          }),
+        })
+      },
+      panBy: (delta) => {
+        const { plan, view } = get()
+        if (!plan) return
+        set({ view: { ...view, x: view.x + delta.x, y: view.y + delta.y } })
+      },
+      fitToScreen: (viewport) => {
+        const { plan } = get()
+        if (plan) set({ view: fitToViewport(plan, viewport) })
+      },
+      startCalibration: () => {
+        // One tool at a time
+        if (get().plan)
+          set({ calibrationDraft: [], tape: null, selectedId: null })
+      },
+      placeCalibrationPoint: (point) => {
+        const { calibrationDraft: draft } = get()
+        if (!draft || draft.length >= 2) return
+        const [start] = draft
+        // A zero-length line cannot set a scale
+        if (start && start.x === point.x && start.y === point.y) return
+        set({ calibrationDraft: [...draft, point] })
+      },
+      finishCalibration: (lengthCm) => {
+        const [start, end] = get().calibrationDraft ?? []
+        if (!start || !end || !(lengthCm > 0) || !isFinite(lengthCm)) return
+        edit(
+          { label: 'calibrate scale', itemId: null },
+          {
+            calibration: {
+              start,
+              end,
+              lengthCm,
+              scale: scaleFromLine(start, end, lengthCm),
+            },
+            calibrationDraft: null,
+          },
+        )
+      },
+      cancelCalibration: () => set({ calibrationDraft: null }),
+      startMeasuring: () => {
+        if (!selectScale(get())) return
+        set({
+          tape: { measurement: null, stretching: false },
+          calibrationDraft: null,
+          selectedId: null,
+        })
+      },
+      startMeasurementAt: (point) => {
+        if (!get().tape) return
+        set({
+          tape: { measurement: { start: point, end: point }, stretching: true },
+        })
+      },
+      stretchMeasurementTo: (point) => {
+        const { tape } = get()
+        if (!tape?.measurement || !tape.stretching) return
+        set({
+          tape: { ...tape, measurement: { ...tape.measurement, end: point } },
+        })
+      },
+      finishMeasurementAt: (point) => {
+        const { tape } = get()
+        if (!tape?.measurement || !tape.stretching) return
+        const { start } = tape.measurement
+        // Nothing to measure yet; the end keeps following the pointer
+        if (start.x === point.x && start.y === point.y) return
+        set({
+          tape: {
+            measurement: { ...tape.measurement, end: point },
+            stretching: false,
+          },
+        })
+      },
+      stopMeasuring: () => set({ tape: null }),
+      addFurniture: (spec, viewport) => {
+        const { furniture, view } = get()
+        if (!selectScale(get())) return
+        const centre = { x: viewport.width / 2, y: viewport.height / 2 }
+        const item: Furniture = {
+          ...spec,
+          id: `item-${++lastId}`,
+          position: screenToPlan(view, centre),
+          rotationDeg: 0,
+        }
+        edit(
+          { label: `add ${item.name}`, itemId: item.id },
+          {
+            furniture: [...furniture, item],
+            // Selecting leaves any tool, so the new item is ready to work on
+            ...selectItem(item.id),
+          },
+        )
+      },
+      selectFurniture: (id) => {
+        if (get().furniture.some((f) => f.id === id)) set(selectItem(id))
+      },
+      clearSelection: () => set({ selectedId: null }),
+      deleteSelectedFurniture: () => {
+        const { furniture, selectedId } = get()
+        if (!selectedId) return
+        edit(itemStep('delete', furniture, selectedId), {
+          furniture: furniture.filter((f) => f.id !== selectedId),
+          selectedId: null,
+        })
+      },
+      moveFurniture: (id, position) =>
+        edit(itemStep('move', get().furniture, id), {
+          furniture: updateItem(get().furniture, id, { position }),
         }),
-      }),
-    resizeFurniture: (id, widthCm, depthCm) => {
-      if (!isPositive(widthCm) || !isPositive(depthCm)) return
-      set({ furniture: updateItem(get().furniture, id, { widthCm, depthCm }) })
-    },
-    nudgeSelectedFurniture: (direction, cm) => {
-      const { furniture, selectedId } = get()
-      const scale = selectScale(get())
-      const item = furniture.find((f) => f.id === selectedId)
-      if (!item || !scale) return
-      const offset = nudgeOffset(direction, cm, scale)
-      get().moveFurniture(item.id, {
-        x: item.position.x + offset.x,
-        y: item.position.y + offset.y,
-      })
-    },
-  }))
+      renameFurniture: (id, name) => {
+        const trimmed = name.trim()
+        if (!trimmed) return
+        const step = itemStep('rename', get().furniture, id)
+        edit(
+          { ...step, label: `${step.label} to ${trimmed}` },
+          { furniture: updateItem(get().furniture, id, { name: trimmed }) },
+        )
+      },
+      rotateFurniture: (id, deg) =>
+        edit(itemStep('rotate', get().furniture, id), {
+          furniture: updateItem(get().furniture, id, {
+            rotationDeg: snapRotation(deg, null),
+          }),
+        }),
+      resizeFurniture: (id, widthCm, depthCm) => {
+        if (!isPositive(widthCm) || !isPositive(depthCm)) return
+        edit(itemStep('resize', get().furniture, id), {
+          furniture: updateItem(get().furniture, id, { widthCm, depthCm }),
+        })
+      },
+      nudgeSelectedFurniture: (direction, cm) => {
+        const { furniture, selectedId } = get()
+        const scale = selectScale(get())
+        const item = furniture.find((f) => f.id === selectedId)
+        if (!item || !scale) return
+        const offset = nudgeOffset(direction, cm, scale)
+        const position = {
+          x: item.position.x + offset.x,
+          y: item.position.y + offset.y,
+        }
+        // A run of nudges to one item is one step
+        edit(
+          itemStep('move', furniture, item.id),
+          { furniture: updateItem(furniture, item.id, { position }) },
+          `nudge ${item.id}`,
+        )
+      },
+    }
+  })
 }
+
+/** A step that `verb`s the item `id`, named after it ("move Sofa"). */
+const itemStep = (verb: string, furniture: Furniture[], id: string): Step => ({
+  label: `${verb} ${furniture.find((f) => f.id === id)?.name ?? 'item'}`,
+  itemId: id,
+})
 
 const isPositive = (n: number) => n > 0 && isFinite(n)
 
@@ -372,7 +523,14 @@ const updateItem = (
   furniture: Furniture[],
   id: string,
   change: Partial<Furniture>,
-) => furniture.map((f) => (f.id === id ? { ...f, ...change } : f))
+) => {
+  const item = furniture.find((f) => f.id === id)
+  if (!item) return furniture
+  const changed = { ...item, ...change }
+  // The same array when nothing changes, so it is no step to undo
+  if (JSON.stringify(changed) === JSON.stringify(item)) return furniture
+  return furniture.map((f) => (f === item ? changed : f))
+}
 
 export const planStore = createPlanStore()
 

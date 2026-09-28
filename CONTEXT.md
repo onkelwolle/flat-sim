@@ -45,3 +45,11 @@ All the **Items** placed on the **Plan**.
 
 **Selection**:
 The one **Item** currently being worked on, or none. Adding an item selects it; clicking an item selects it; clicking empty canvas (without panning) or pressing Esc selects none. Delete removes the selected item. Selection and tools exclude each other: starting the **Calibrate tool** or **Measuring tape** clears the selection, and selecting an item leaves the active tool.
+
+**Undo** / **Redo**:
+Taking back the last **Step**, or making an undone step again (Ctrl+Z / Cmd+Z; Ctrl+Shift+Z / Cmd+Shift+Z or Ctrl+Y; or the toolbar buttons, whose tooltips name the step). Only the **Project** is undone: never a **Measurement**, the **Selection** or the **View**. Afterwards the item the step touched is selected, or nothing if the step removed it or concerned no single item; an active tool stays active instead, except that the **Measuring tape** closes if the **Scale** goes. With calibration points placed, undo first just leaves the **Calibrate tool**. Shortcuts do nothing while a dialog is open, in a text field, or during a drag or turn. The history lives in memory only, keeps the last 100 steps, and starts empty on a new project or a restore.
+_Avoid_: history entry, revert
+
+**Step**:
+One completed edit to the **Project**, undone and redone as a whole: adding, moving (one drag), turning (one turn of the rotate handle), renaming, resizing or deleting an item, one field edit in the side panel, confirming a **Calibration**, or replacing the **Plan**. A run of nudges to the same item is one step, ended by any other edit or a second without nudging. A new step drops any steps that were undone.
+_Avoid_: action, change, operation

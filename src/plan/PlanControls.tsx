@@ -11,6 +11,7 @@ import {
 import { MeasureButton, MeasuringTapeStatus } from './MeasuringTapeControls'
 import { loadPlanFile, PLAN_FILE_TYPES } from './loadPlanFile'
 import { planStore, usePlanStore } from './planStore'
+import { UndoButtons } from './UndoControls'
 import { useFileDrop } from './useFileDrop'
 
 // A clicked button keeps focus, so the space bar would press it again instead
@@ -19,7 +20,7 @@ const keepFocusOffToolbar = (e: MouseEvent) => e.preventDefault()
 
 /**
  * HTML overlay for opening a plan (file picker, drop target, replace prompt),
- * fitting it to the screen, calibrating its scale, measuring it, adding or
+ * undoing and redoing edits, fitting it to the screen, calibrating its scale, measuring it, adding or
  * deleting furniture and starting a new project.
  */
 export function PlanControls({
@@ -76,6 +77,9 @@ export function PlanControls({
           >
             New project
           </button>
+        )}
+        {hasPlan && (
+          <UndoButtons viewport={viewport} onMouseDown={keepFocusOffToolbar} />
         )}
         {hasPlan && (
           <button

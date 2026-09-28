@@ -27,11 +27,15 @@ _Avoid_: zoom (that is the view's magnification)
 A line drawn along a wall of known length, plus that real length, which together set the **Scale**. Re-calibrating replaces it; replacing the **Plan** drops it.
 
 **Calibrate tool**:
-The tool for drawing a **Calibration**: tap or click both ends of a wall on the plan, then enter its real length in cm or m. Points already placed stay when a second finger lands.
+The tool for drawing a **Calibration**: tap or click both ends of a wall on the plan, then enter its real length in cm or m. A click places its point at once; a finger or pen places it where it lifts, see **Loupe**. Points already placed stay when a second finger lands; the one being placed is not placed.
 
 **Measuring tape**:
-The tool for measuring the real distance between two points on the **Plan**: tap or click each, or drag between them; holding Shift snaps the line to horizontal, vertical or 45°. Available only once the **Scale** is set. One tool is active at a time: starting the measuring tape leaves the **Calibrate tool**, and the other way round.
+The tool for measuring the real distance between two points on the **Plan**: tap or click each, or drag between them; holding Shift snaps the line to horizontal, vertical or 45°. By finger or pen, the second tap's end and a drag's end go where the finger lifts, see **Loupe**; lifting off the plan ends a drag with no measurement, and leaves a second end unplaced. Available only once the **Scale** is set. One tool is active at a time: starting the measuring tape leaves the **Calibrate tool**, and the other way round.
 _Avoid_: ruler, measure tool
+
+**Loupe**:
+While a finger or pen is down placing a point with the **Calibrate tool** or **Measuring tape**, a circle about 100 px above-left of it (below it near the top edge, right of it near the left edge) shows the plan under it at twice the **View**'s zoom, with a crosshair on the point. The finger can slide to adjust; the point goes where it lifts, and nowhere if it lifts off the plan or the canvas. A mouse places points where it presses, with no loupe. A second finger landing hides it.
+_Avoid_: magnifier, zoom lens
 
 **Measurement**:
 A straight line between two points on the **Plan**, in **Plan pixels**, shown with its real length (whole cm below a metre, else metres to two decimals). For now a measurement lasts only while the **Measuring tape** is active; leaving the tool drops it, and so does a second finger landing while it is being drawn.

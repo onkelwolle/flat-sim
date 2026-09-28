@@ -7,12 +7,14 @@ const COLOUR = '#2b6cb0'
 /**
  * The measuring tape's current measurement: a line between its ends with the
  * real distance. Drawn in plan pixels; strokes and label keep a constant size
- * on screen. Nothing is drawn while the tape is not active.
+ * on screen, at the view's zoom or the given `zoom`. Nothing is drawn while
+ * the tape is not active.
  */
-export function MeasuringTapeLayer() {
+export function MeasuringTapeLayer({ zoom: ownZoom }: { zoom?: number }) {
   const measurement = usePlanStore((s) => s.tape?.measurement)
   const lengthCm = usePlanStore(selectMeasuredLength)
-  const zoom = usePlanStore((s) => s.view.scale)
+  const viewZoom = usePlanStore((s) => s.view.scale)
+  const zoom = ownZoom ?? viewZoom
 
   if (!measurement || lengthCm === null) return null
   const { start, end } = measurement

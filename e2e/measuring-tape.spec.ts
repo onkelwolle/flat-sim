@@ -40,7 +40,9 @@ test.describe('once calibrated', () => {
     await calibrate(page)
     await measureButton(page).click()
     await expect(measureButton(page)).toHaveAttribute('aria-pressed', 'true')
-    await expect(status(page)).toHaveText(/Click or drag between two points/)
+    await expect(status(page)).toHaveText(
+      /^Tap or click two points, or drag between them/,
+    )
   })
 
   test('click, click: shows the distance live, then keeps it', async ({
@@ -57,7 +59,9 @@ test.describe('once calibrated', () => {
 
     await page.mouse.click(960, 360)
     await page.mouse.move(640, 600, { steps: 3 })
-    await expect(status(page)).toHaveText(/^Distance: 4\.00 m\. Click to/)
+    await expect(status(page)).toHaveText(
+      /^Distance: 4\.00 m\. Tap or click to/,
+    )
   })
 
   test('click-drag: measures between the press and the release', async ({
@@ -71,7 +75,9 @@ test.describe('once calibrated', () => {
     await page.mouse.up()
 
     await page.mouse.move(640, 600, { steps: 3 })
-    await expect(status(page)).toHaveText(/^Distance: 4\.00 m\. Click to/)
+    await expect(status(page)).toHaveText(
+      /^Distance: 4\.00 m\. Tap or click to/,
+    )
   })
 
   test('space+drag pans without moving the end being stretched', async ({
@@ -96,7 +102,9 @@ test.describe('once calibrated', () => {
 
     // The end follows the pointer again, still stretching
     await page.mouse.move(1060, 410, { steps: 3 })
-    await expect(status(page)).toHaveText(/^Distance: 4\.00 m\. Click the/)
+    await expect(status(page)).toHaveText(
+      /^Distance: 4\.00 m\. Tap or click the/,
+    )
   })
 
   test('holding Shift snaps to horizontal, vertical or 45°', async ({
@@ -119,7 +127,9 @@ test.describe('once calibrated', () => {
     await page.mouse.click(640, 700)
     await page.keyboard.up('Shift')
     await page.mouse.move(100, 100, { steps: 3 })
-    await expect(status(page)).toHaveText(/^Distance: 2\.92 m\. Click to/)
+    await expect(status(page)).toHaveText(
+      /^Distance: 2\.92 m\. Tap or click to/,
+    )
   })
 
   test('the measurement disappears when the tape is left', async ({ page }) => {
@@ -132,7 +142,9 @@ test.describe('once calibrated', () => {
     await expect(measureButton(page)).toHaveAttribute('aria-pressed', 'false')
 
     await measureButton(page).click()
-    await expect(status(page)).toHaveText(/Click or drag between two points/)
+    await expect(status(page)).toHaveText(
+      /^Tap or click two points, or drag between them/,
+    )
     await measureButton(page).click()
     await expect(status(page)).toHaveText('Scale: 1 m = 50 plan px')
   })
@@ -160,6 +172,6 @@ test.describe('once calibrated', () => {
     await page.getByRole('button', { name: 'Recalibrate' }).click()
 
     await expect(measureButton(page)).toHaveAttribute('aria-pressed', 'false')
-    await expect(status(page)).toHaveText(/Click one end of a wall/)
+    await expect(status(page)).toHaveText(/^Tap or click one end of a wall/)
   })
 })

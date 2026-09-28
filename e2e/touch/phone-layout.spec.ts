@@ -1,5 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
-import { canvasDrawn, pickFile, widePlan } from '../plan.ts'
+import { canvasDrawn, expectPlanColour, pickFile, widePlan } from '../plan.ts'
 
 // A phone in portrait. The wide plan (400×200 px) is fitted at 0.975× with
 // its top at y = 324.5: screen (97.5, 422) is plan (100, 100) and screen
@@ -220,4 +220,139 @@ test('from 600 px wide the toolbar stays at the top', async ({ page }) => {
   await expect(
     page.locator('.toolbar').getByRole('button', { name: 'Fit to screen' }),
   ).toBeVisible()
+})
+
+test('the selected item’s panel is a sheet on the bar, under the status', async ({
+  page,
+}) => {
+  await pickFile(page, widePlan)
+  await calibrate(page)
+  await addSofa(page)
+
+  const sheet = await box(itemPanel(page))
+  const bar = await box(bottomBar(page))
+  const status = await box(page.getByRole('status'))
+  // Full width, sitting on the bar, with the status clear above it
+  expect(sheet.x).toBe(0)
+  expect(sheet.width).toBe(390)
+  expect(sheet.y + sheet.height).toBeLessThanOrEqual(bar.y)
+  expect(sheet.y + sheet.height).toBeGreaterThan(bar.y - 12)
+  expect(status.y + status.height).toBeLessThanOrEqual(sheet.y)
+  // Opens expanded, its fields finger-sized
+  for (const label of ['Name', 'Width (cm)', 'Depth (cm)', 'Rotation (°)']) {
+    const field = await box(itemPanel(page).getByLabel(label))
+    expect(field.height).toBeGreaterThanOrEqual(44)
+    expect(field.y).toBeGreaterThanOrEqual(sheet.y)
+    expect(field.y + field.height).toBeLessThanOrEqual(sheet.y + sheet.height)
+  }
+})
+
+test('the sheet collapses to its title row and expands again', async ({
+  page,
+}) => {
+  await pickFile(page, widePlan)
+  await calibrate(page)
+  await addSofa(page)
+  const title = itemPanel(page).getByRole('button', { name: 'Sofa' })
+  await expect(title).toHaveAttribute('aria-expanded', 'true')
+
+  await title.tap()
+
+  await expect(title).toHaveAttribute('aria-expanded', 'false')
+  await expect(itemPanel(page).getByLabel('Width (cm)')).toBeHidden()
+  // Just the title row, a finger's height, still on the bar
+  const row = await box(title)
+  const sheet = await box(itemPanel(page))
+  const bar = await box(bottomBar(page))
+  expect(row.height).toBeGreaterThanOrEqual(44)
+  expect(sheet.height).toBeLessThan(row.height + 40)
+  expect(sheet.y + sheet.height).toBeGreaterThan(bar.y - 12)
+  expect(sheet.y + sheet.height).toBeLessThanOrEqual(bar.y)
+
+  await title.tap()
+
+  await expect(title).toHaveAttribute('aria-expanded', 'true')
+  await expect(itemPanel(page).getByLabel('Width (cm)')).toHaveValue('200')
+
+  // Another selection opens expanded again
+  await title.tap()
+  await page.touchscreen.tap(40, 250)
+  await expect(itemPanel(page)).toBeHidden()
+  await page.touchscreen.tap(195, 422)
+  await expect(title).toHaveAttribute('aria-expanded', 'true')
+})
+
+test.describe('with the on-screen keyboard', () => {
+  // Chromium opens no on-screen keyboard, so stand in for the visual viewport:
+  // opening a keyboard shrinks it and leaves the page (the layout viewport) as
+  // it is, as `interactive-widget=resizes-visual` asks of a phone browser
+  test.beforeEach(async ({ page }) => {
+    await page.addInitScript(() => {
+      const visual = Object.assign(new EventTarget(), {
+        offsetTop: 0,
+        offsetLeft: 0,
+        scale: 1,
+        get width() {
+          return window.innerWidth
+        },
+        height: window.innerHeight,
+      })
+      Object.defineProperty(window, 'visualViewport', { value: visual })
+      Object.assign(window, {
+        showKeyboard: (height: number) => {
+          visual.height = window.innerHeight - height
+          visual.dispatchEvent(new Event('resize'))
+        },
+      })
+    })
+    await page.reload()
+  })
+
+  const showKeyboard = (page: Page, height: number) =>
+    page.evaluate(
+      (height) =>
+        (
+          window as unknown as { showKeyboard: (height: number) => void }
+        ).showKeyboard(height),
+      height,
+    )
+
+  test('the sheet rises above it, and the canvas keeps its size', async ({
+    page,
+  }) => {
+    await pickFile(page, widePlan)
+    await calibrate(page)
+    await addSofa(page)
+    const width = itemPanel(page).getByLabel('Width (cm)')
+    await width.tap()
+
+    await showKeyboard(page, 300)
+
+    // The sheet sits on the keyboard, the field being typed in in view; the
+    // bar is out of the way beneath the keyboard
+    await expect
+      .poll(async () => {
+        const sheet = await box(itemPanel(page))
+        return sheet.y + sheet.height
+      })
+      .toBe(844 - 300)
+    const field = await box(width)
+    expect(field.y + field.height).toBeLessThanOrEqual(844 - 300)
+    expect((await box(bottomBar(page))).y).toBeGreaterThanOrEqual(844 - 300)
+    await expect(width).toBeFocused()
+    // The canvas neither shrinks nor moves: the view stays where it was
+    const canvas = await box(page.locator('canvas').first())
+    expect(canvas).toEqual({ x: 0, y: 0, width: 390, height: 844 })
+    await expectPlanColour(page, 97.5, 422, 'red')
+
+    // Closing it puts the sheet back on the bar
+    await showKeyboard(page, 0)
+    await expect
+      .poll(async () => (await box(bottomBar(page))).y)
+      .toBeLessThan(844 - 44)
+    const sheet = await box(itemPanel(page))
+    const bar = await box(bottomBar(page))
+    expect(sheet.y + sheet.height).toBeLessThanOrEqual(bar.y)
+    expect(sheet.y + sheet.height).toBeGreaterThan(bar.y - 12)
+  })
 })

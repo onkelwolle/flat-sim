@@ -1,4 +1,4 @@
-import { useState, type CSSProperties, type MouseEvent } from 'react'
+import { useId, useState, type CSSProperties, type MouseEvent } from 'react'
 import { useModalDialog } from '../dialogs'
 import type { Size } from '../useViewportSize'
 import {
@@ -90,15 +90,24 @@ export function FurnitureStatus() {
 /**
  * Side panel for the selected item, editing its name, its size in cm and its
  * rotation in degrees. Shown only while an item is selected, below the screen
- * position `below` (the toolbar's bottom edge).
+ * position `below` (the toolbar's bottom edge); as a `sheet`, it sits on the
+ * phone's bottom bar instead.
  */
-export function FurniturePanel({ below }: { below: number }) {
+export function FurniturePanel({
+  below = 0,
+  sheet = false,
+}: {
+  below?: number
+  sheet?: boolean
+}) {
   const item = usePlanStore((s) =>
     s.furniture.find((f) => f.id === s.selectedId),
   )
   if (!item) return null
   // A fresh form for each item, so edits never carry over to another
-  return <FurniturePanelForm key={item.id} item={item} below={below} />
+  return (
+    <FurniturePanelForm key={item.id} item={item} below={below} sheet={sheet} />
+  )
 }
 
 type PanelField = 'name' | 'width' | 'depth' | 'rotation'
@@ -106,11 +115,16 @@ type PanelField = 'name' | 'width' | 'depth' | 'rotation'
 function FurniturePanelForm({
   item,
   below,
+  sheet,
 }: {
   item: Furniture
   below: number
+  sheet: boolean
 }) {
   const [error, setError] = useState<{ field: PanelField; message: string }>()
+  // A sheet opens expanded, and collapses to its title to show the plan
+  const [expanded, setExpanded] = useState(true)
+  const bodyId = useId()
   const store = planStore.getState()
 
   const field = (
@@ -144,57 +158,78 @@ function FurniturePanelForm({
 
   return (
     <aside
-      className="panel"
+      className={sheet ? 'panel sheet' : 'panel'}
       aria-label="Selected item"
       style={{ '--below': `${below}px` } as CSSProperties}
     >
-      <h2>{item.name}</h2>
-      <div className="panel-fields">
-        <div className="panel-wide">
+      <h2>
+        {sheet ? (
+          <button
+            type="button"
+            className="sheet-title"
+            aria-expanded={expanded}
+            aria-controls={bodyId}
+            onClick={() => setExpanded(!expanded)}
+          >
+            {item.name}
+            <span className="sheet-chevron" aria-hidden="true" />
+          </button>
+        ) : (
+          item.name
+        )}
+      </h2>
+      <div
+        id={bodyId}
+        className={sheet ? 'sheet-body' : undefined}
+        hidden={!expanded}
+      >
+        <div className="panel-fields">
+          <div className="panel-wide">
+            {field(
+              'name',
+              'Name',
+              item.name,
+              (text) => {
+                const name = parseName(text)
+                if (name) store.renameFurniture(item.id, name)
+                return name !== null
+              },
+              NAME_ERROR,
+              false,
+            )}
+          </div>
           {field(
-            'name',
-            'Name',
-            item.name,
+            'width',
+            'Width (cm)',
+            String(item.widthCm),
+            (text) => resize(parseLength(text, 'cm'), item.depthCm),
+            SIZE_ERROR,
+          )}
+          {field(
+            'depth',
+            'Depth (cm)',
+            String(item.depthCm),
+            (text) => resize(item.widthCm, parseLength(text, 'cm')),
+            SIZE_ERROR,
+          )}
+          {field(
+            'rotation',
+            'Rotation (°)',
+            formatRotation(item.rotationDeg),
             (text) => {
-              const name = parseName(text)
-              if (name) store.renameFurniture(item.id, name)
-              return name !== null
+              const deg = parseRotation(text)
+              if (deg !== null) store.rotateFurniture(item.id, deg)
+              return deg !== null
             },
-            NAME_ERROR,
-            false,
+            ROTATION_ERROR,
           )}
         </div>
-        {field(
-          'width',
-          'Width (cm)',
-          String(item.widthCm),
-          (text) => resize(parseLength(text, 'cm'), item.depthCm),
-          SIZE_ERROR,
-        )}
-        {field(
-          'depth',
-          'Depth (cm)',
-          String(item.depthCm),
-          (text) => resize(item.widthCm, parseLength(text, 'cm')),
-          SIZE_ERROR,
-        )}
-        {field(
-          'rotation',
-          'Rotation (°)',
-          formatRotation(item.rotationDeg),
-          (text) => {
-            const deg = parseRotation(text)
-            if (deg !== null) store.rotateFurniture(item.id, deg)
-            return deg !== null
-          },
-          ROTATION_ERROR,
+        {error && (
+          <p className="error" role="alert">
+            {error.message}
+          </p>
         )}
       </div>
-      {error && (
-        <p className="error" role="alert">
-          {error.message}
-        </p>
-      )}
     </aside>
   )
 }

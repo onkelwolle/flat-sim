@@ -1,5 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
-import { expectFurnitureAt, pickFile, widePlan } from '../plan.ts'
+import { canvasDrawn, expectFurnitureAt, pickFile, widePlan } from '../plan.ts'
 import { fingers } from './fingers.ts'
 
 // A tablet in portrait. The wide plan (400×200 px) is fitted at 1.92× with
@@ -48,6 +48,8 @@ const addSofa = async (page: Page) => {
     .getByRole('button', { name: 'Add', exact: true })
     .click()
   await expect(addDialog(page)).toBeHidden()
+  // Drawn, so a finger on it finds it
+  await canvasDrawn(page)
 }
 
 test.beforeEach(async ({ page }) => {

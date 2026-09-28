@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
-import { expectFurnitureAt, pickFile, widePlan } from '../plan.ts'
+import { canvasDrawn, expectFurnitureAt, pickFile, widePlan } from '../plan.ts'
 import { fingers } from './fingers.ts'
 
 // The wide plan (400×200 px) is fitted to the 1194×834 tablet at 2.985× with
@@ -36,6 +36,8 @@ const addSofa = async (page: Page) => {
   await form.getByLabel('Depth (cm)').fill('100')
   await form.getByRole('button', { name: 'Add', exact: true }).click()
   await expect(form).toBeHidden()
+  // Drawn, so a finger on it finds it
+  await canvasDrawn(page)
 }
 
 test.beforeEach(async ({ page }) => {

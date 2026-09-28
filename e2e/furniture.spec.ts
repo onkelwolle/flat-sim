@@ -1,5 +1,6 @@
 import { expect, test, type Page } from '@playwright/test'
 import {
+  canvasDrawn,
   expectFurnitureAt,
   expectPlanColour,
   expectWidePlanFitted,
@@ -47,6 +48,8 @@ const addFurniture = async (
   await form.getByLabel('Depth (cm)').fill(depthCm)
   await form.getByRole('button', { name: 'Add', exact: true }).click()
   await expect(form).toBeHidden()
+  // Drawn, so a press on it finds it
+  await canvasDrawn(page)
 }
 
 test.beforeEach(async ({ page }) => {

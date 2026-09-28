@@ -5,6 +5,7 @@ import {
   selectScale,
   usePlanStore,
 } from './planStore'
+import { useFinePointer } from '../useMediaQuery'
 import { formatLength } from './scale'
 
 /**
@@ -35,18 +36,25 @@ export function MeasureButton({
   )
 }
 
-/** What the measuring tape shows in the status bar: how to use it, or the distance. */
+/**
+ * What the measuring tape shows in the status bar: how to use it, or the
+ * distance. Hints about Shift and Esc show only if there is a mouse or
+ * trackpad (and so likely a keyboard); fingers and pens snap by themselves.
+ */
 export function MeasuringTapeStatus() {
   const lengthCm = usePlanStore(selectMeasuredLength)
   const stretching = usePlanStore((s) => s.tape?.stretching ?? false)
+  const keys = useFinePointer()
 
   const message =
     lengthCm === null
-      ? 'Tap or click two points, or drag between them, to measure. Hold Shift to snap. Esc exits.'
+      ? 'Tap or click two points, or drag between them, to measure.' +
+        (keys ? ' Hold Shift to snap. Esc exits.' : '')
       : `Distance: ${formatLength(lengthCm)}. ` +
         (stretching
-          ? 'Tap or click the other end; hold Shift to snap. Esc exits.'
-          : 'Tap or click to measure again. Esc exits.')
+          ? 'Tap or click the other end' +
+            (keys ? '; hold Shift to snap. Esc exits.' : '.')
+          : 'Tap or click to measure again.' + (keys ? ' Esc exits.' : ''))
 
   return (
     <p className="status" role="status">

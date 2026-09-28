@@ -11,7 +11,6 @@ const screen = (x: number, y: number): [number, number] => [
 ]
 
 const status = (page: Page) => page.getByRole('status')
-const loupe = (page: Page) => page.getByTestId('loupe')
 const lengthDialog = (page: Page) =>
   page.getByRole('dialog', { name: 'How long is this line?' })
 
@@ -112,6 +111,22 @@ test('tap one end, pan with two fingers, tap the other end: measures', async ({
 
   await expect(status(page)).toHaveText(
     /^Distance: 4\.00 m\. Tap or click to measure again/,
+  )
+})
+
+test('the status bar says nothing of Shift or Esc without a mouse', async ({
+  page,
+}) => {
+  await expect(status(page)).toHaveText(
+    'Tap or click two points, or drag between them, to measure.',
+  )
+  await page.touchscreen.tap(...screen(100, 100))
+  await expect(status(page)).toHaveText(
+    'Distance: 0 cm. Tap or click the other end.',
+  )
+  await page.touchscreen.tap(...screen(300, 100))
+  await expect(status(page)).toHaveText(
+    'Distance: 4.00 m. Tap or click to measure again.',
   )
 })
 

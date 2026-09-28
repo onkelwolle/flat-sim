@@ -18,3 +18,9 @@ export function useMediaQuery(query: string): boolean {
  * calls for finger-sized targets. The CSS sizes controls by the same query.
  */
 export const useCoarsePointer = () => useMediaQuery('(any-pointer: coarse)')
+
+/**
+ * Whether any pointer is fine (a mouse or trackpad, even beside a touch
+ * screen), which suggests a keyboard too: worth hints about Shift and Esc.
+ */
+export const useFinePointer = () => useMediaQuery('(any-pointer: fine)')

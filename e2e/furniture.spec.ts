@@ -367,8 +367,9 @@ test.describe('the item panel', () => {
     await expect(panel(page)).toBeHidden()
   })
 
-  test('shows the rotation, in snapped steps', async ({ page }) => {
-    await expect(panel(page)).toContainText('Rotation 0°')
+  test('shows the rotation as the handle turns the item', async ({ page }) => {
+    const rotation = panel(page).getByLabel('Rotation (°)')
+    await expect(rotation).toHaveValue('0')
 
     // Drag the handle, 50 px above the top edge, to about 40° clockwise
     await page.mouse.move(640, 230)
@@ -382,7 +383,68 @@ test.describe('the item panel', () => {
     )
     await page.mouse.up()
 
-    await expect(panel(page)).toContainText('Rotation 45°')
+    await expect(rotation).toHaveValue('45')
+  })
+
+  test('editing the name renames the item', async ({ page }) => {
+    const name = panel(page).getByLabel('Name')
+    await expect(name).toHaveValue('Sofa')
+    await name.fill(' Couch ')
+    await name.press('Enter')
+
+    await expect(name).toHaveValue('Couch')
+    await expect(panel(page).getByRole('heading')).toHaveText('Couch')
+    await expect(status(page)).toHaveText(/^Couch selected\./)
+  })
+
+  test('rejects an empty name', async ({ page }) => {
+    const name = panel(page).getByLabel('Name')
+    await name.fill('  ')
+    // Moving on to another field applies it too
+    await panel(page).getByLabel('Width (cm)').focus()
+
+    await expect(panel(page).getByRole('alert')).toHaveText('Enter a name.')
+    await expect(name).toHaveAttribute('aria-invalid', 'true')
+    await expect(panel(page).getByRole('heading')).toHaveText('Sofa')
+
+    await name.fill('Couch')
+    await name.press('Enter')
+    await expect(panel(page).getByRole('alert')).toBeHidden()
+    await expect(name).toHaveAttribute('aria-invalid', 'false')
+  })
+
+  test('editing the rotation turns the item about its centre', async ({
+    page,
+  }) => {
+    const rotation = panel(page).getByLabel('Rotation (°)')
+    await rotation.fill('90')
+    await rotation.press('Enter')
+
+    // 200 × 100 cm on end: 160 × 320 screen px around (640, 360)
+    await expectFurnitureAt(page, 640, 210)
+    await expectFurnitureAt(page, 640, 190, false)
+    await expectFurnitureAt(page, 485, 285, false)
+  })
+
+  test('keeps a typed rotation within 0–360°', async ({ page }) => {
+    const rotation = panel(page).getByLabel('Rotation (°)')
+    await rotation.fill('370')
+    await rotation.press('Enter')
+    await expect(rotation).toHaveValue('10')
+
+    await rotation.fill('-90')
+    await rotation.press('Enter')
+    await expect(rotation).toHaveValue('270')
+  })
+
+  test('rejects a rotation that is not a number', async ({ page }) => {
+    const rotation = panel(page).getByLabel('Rotation (°)')
+    await rotation.fill('left')
+    await rotation.press('Enter')
+
+    await expect(panel(page).getByRole('alert')).toHaveText(/rotation/)
+    await expect(rotation).toHaveAttribute('aria-invalid', 'true')
+    await expectFurnitureAt(page, 485, 285)
   })
 
   test('editing the width and depth resizes the item around its centre', async ({
@@ -417,16 +479,19 @@ test.describe('the item panel', () => {
     await expect(panel(page).getByRole('alert')).toBeHidden()
   })
 
-  test('keys typed into the panel do not nudge, delete or deselect the item', async ({
-    page,
-  }) => {
-    const width = panel(page).getByLabel('Width (cm)')
-    await width.press('Shift+ArrowLeft')
-    await width.press('ArrowUp')
-    await width.press('Backspace')
-    await width.press('Escape')
+  for (const label of ['Name', 'Width (cm)', 'Rotation (°)']) {
+    test(`keys typed into ${label} do not nudge, delete or deselect the item`, async ({
+      page,
+    }) => {
+      const field = panel(page).getByLabel(label)
+      await field.press('Shift+ArrowLeft')
+      await field.press('ArrowUp')
+      await field.press('Backspace')
+      await field.press('Delete')
+      await field.press('Escape')
 
-    await expectFurnitureAt(page, 485, 285)
-    await expect(status(page)).toHaveText(/^Sofa selected\./)
-  })
+      await expectFurnitureAt(page, 485, 285)
+      await expect(status(page)).toHaveText(/^Sofa selected\./)
+    })
+  }
 })

@@ -141,9 +141,8 @@ body {
   margin-top: 0.5rem;
 }
 
-.panel-note {
-  margin: 0.5rem 0 0;
-  color: #555;
+.panel-wide {
+  grid-column: 1 / -1;
 }
 
 .empty-hint {

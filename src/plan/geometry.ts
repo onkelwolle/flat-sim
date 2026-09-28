@@ -39,6 +39,17 @@ export function snapRotation(
   return (((snapped % 360) + 360) % 360) + 0
 }
 
+/**
+ * A clockwise rotation typed by the user, in degrees, brought within
+ * [0, 360) (so 370° is 10° and -90° is 270°), or null if the text is not an
+ * angle. Accepts a decimal point or comma and a trailing °.
+ */
+export function parseRotation(text: string): number | null {
+  const normalized = text.trim().replace(/°$/, '').replace(',', '.')
+  if (!/^-?(\d+\.?\d*|\.\d+)$/.test(normalized)) return null
+  return snapRotation(Number(normalized), null)
+}
+
 /** A direction an arrow key moves an item in, as seen on screen. */
 export type NudgeDirection = 'left' | 'right' | 'up' | 'down'
 

@@ -139,6 +139,8 @@ export type PlanState = {
   deleteSelectedFurniture: () => void
   /** Put an item's centre at a point, in plan pixels. */
   moveFurniture: (id: string, position: Point) => void
+  /** Rename an item; the name is trimmed, and ignored if that leaves it empty. */
+  renameFurniture: (id: string, name: string) => void
   /** Set an item's clockwise rotation, in degrees; kept within [0, 360). */
   rotateFurniture: (id: string, deg: number) => void
   /** Set an item's real size; ignored unless both are greater than zero. */
@@ -334,6 +336,11 @@ export function createPlanStore() {
     },
     moveFurniture: (id, position) =>
       set({ furniture: updateItem(get().furniture, id, { position }) }),
+    renameFurniture: (id, name) => {
+      const trimmed = name.trim()
+      if (!trimmed) return
+      set({ furniture: updateItem(get().furniture, id, { name: trimmed }) })
+    },
     rotateFurniture: (id, deg) =>
       set({
         furniture: updateItem(get().furniture, id, {

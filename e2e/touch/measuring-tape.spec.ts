@@ -61,3 +61,60 @@ test('a finger drawing a line within 5° of vertical snaps it, and the loupe sho
     /^Distance: 2\.00 m\. Tap or click to measure again/,
   )
 })
+
+test('a line more than 5° off stays where the finger lifts', async ({
+  page,
+}) => {
+  const touch = await fingers(page)
+
+  // Plan (100, 100) to (300, 125), 7.1° off horizontal: 201.6 plan px
+  const a = await touch.down(screen(100, 100))
+  await touch.move({ [a]: screen(300, 125) })
+  await touch.up(a)
+
+  await expect(status(page)).toHaveText(/^Distance: 4\.03 m\./)
+})
+
+test('tap, tap: the second end snaps where the finger lifts', async ({
+  page,
+}) => {
+  await page.touchscreen.tap(...screen(100, 100))
+  const touch = await fingers(page)
+
+  // Lifting at plan (300, 116), 4.6° off horizontal: snaps to (300, 100), 4 m
+  // (unsnapped it would be 200.6 plan px, 4.01 m)
+  const a = await touch.down(screen(260, 180))
+  await touch.move({ [a]: screen(300, 116) })
+  await touch.up(a)
+
+  await expect(status(page)).toHaveText(
+    /^Distance: 4\.00 m\. Tap or click to measure again/,
+  )
+})
+
+test('a pen snaps too', async ({ page }) => {
+  const cdp = await page.context().newCDPSession(page)
+  const pen = (
+    type: 'mousePressed' | 'mouseMoved' | 'mouseReleased',
+    [x, y]: [number, number],
+  ) =>
+    cdp.send('Input.dispatchMouseEvent', {
+      type,
+      x,
+      y,
+      button: 'left',
+      buttons: type === 'mouseReleased' ? 0 : 1,
+      clickCount: 1,
+      pointerType: 'pen',
+    })
+
+  // Plan (100, 100) to (300, 116), 4.6° off horizontal: snaps to (300, 100)
+  await pen('mousePressed', screen(100, 100))
+  await pen('mouseMoved', screen(200, 108))
+  await pen('mouseMoved', screen(300, 116))
+  await pen('mouseReleased', screen(300, 116))
+
+  await expect(status(page)).toHaveText(
+    /^Distance: 4\.00 m\. Tap or click to measure again/,
+  )
+})

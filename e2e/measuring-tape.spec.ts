@@ -132,6 +132,19 @@ test.describe('once calibrated', () => {
     )
   })
 
+  test('without Shift a mouse never snaps, even close to horizontal', async ({
+    page,
+  }) => {
+    await page.mouse.click(320, 360)
+    // Plan (100, 100) to (300, 116), 4.6° off horizontal: 200.6 plan px
+    await page.mouse.move(960, 411.2, { steps: 3 })
+    await page.mouse.click(960, 411.2)
+
+    await expect(status(page)).toHaveText(
+      /^Distance: 4\.01 m\. Tap or click to/,
+    )
+  })
+
   test('the measurement disappears when the tape is left', async ({ page }) => {
     await page.mouse.click(320, 360)
     await page.mouse.click(960, 360)

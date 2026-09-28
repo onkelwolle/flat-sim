@@ -57,11 +57,11 @@ function App() {
     viewport,
     calibrating ? onCalibratePress : measuring ? tape.onCanvasPress : undefined,
     // A second finger cancels what the first was doing, placing nothing;
-    // calibration points already placed stay
+    // calibration points and measurement ends already placed stay
     () => {
       placing.cancel()
       selection.cancelPress()
-      tape.cancelMeasurement()
+      tape.cancelPress()
     },
   )
 

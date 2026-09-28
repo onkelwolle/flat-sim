@@ -92,6 +92,29 @@ test('tap, tap: the second end snaps where the finger lifts', async ({
   )
 })
 
+test('tap one end, pan with two fingers, tap the other end: measures', async ({
+  page,
+}) => {
+  await page.touchscreen.tap(...screen(100, 100))
+  const touch = await fingers(page)
+
+  // Panning the plan 50 px down; its first finger doesn't place the other end
+  const a = await touch.down([700, 600])
+  const b = await touch.down([900, 600])
+  await touch.move({ [a]: [700, 650], [b]: [900, 650] })
+  await touch.up(a)
+  await touch.up(b)
+  await expect(status(page)).toHaveText(
+    /^Distance: 0 cm\. Tap or click the other end/,
+  )
+  const [x, y] = screen(300, 100)
+  await page.touchscreen.tap(x, y + 50)
+
+  await expect(status(page)).toHaveText(
+    /^Distance: 4\.00 m\. Tap or click to measure again/,
+  )
+})
+
 test('a pen snaps too', async ({ page }) => {
   const cdp = await page.context().newCDPSession(page)
   const pen = (

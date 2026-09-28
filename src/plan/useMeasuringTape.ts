@@ -47,8 +47,11 @@ type MeasuringTapeHandlers = {
   onCanvasPress: (e: PointerEvent) => void
   onPointerMove: (e: PointerEvent) => void
   onPointerUp: (e: PointerEvent) => void
-  /** Drop the measurement being drawn, if any; the tape stays active. */
-  cancelMeasurement: () => void
+  /**
+   * Cancel the press under way (a second finger landed), placing nothing: a
+   * measurement it started goes, an end placed before it stays.
+   */
+  cancelPress: () => void
 }
 
 /**
@@ -137,10 +140,16 @@ export function useMeasuringTape(
     if (dragged && at) store.finishMeasurementAt(at)
   }
 
-  const cancelMeasurement = () => {
+  const cancelPress = () => {
+    const pressed = pressedAt.current
     pressedAt.current = null
-    planStore.getState().dropMeasurementInProgress()
+    const store = planStore.getState()
+    const start = store.tape?.stretching && store.tape.measurement?.start
+    // The press started the measurement: drop it; else it was placing the
+    // other end, which goes back to the first until the next tap
+    if (pressed) store.dropMeasurementInProgress()
+    else if (start) store.stretchMeasurementTo(start)
   }
 
-  return { onCanvasPress, onPointerMove, onPointerUp, cancelMeasurement }
+  return { onCanvasPress, onPointerMove, onPointerUp, cancelPress }
 }

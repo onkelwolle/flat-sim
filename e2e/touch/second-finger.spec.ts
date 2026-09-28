@@ -148,7 +148,9 @@ test('tapping empty canvas selects none', async ({ page }) => {
   await expect(deleteButton(page)).toBeHidden()
 })
 
-test('a second finger drops a measurement being drawn', async ({ page }) => {
+test('a second finger drops a measurement its first finger is dragging out', async ({
+  page,
+}) => {
   await page.getByRole('button', { name: 'Measure' }).click()
   const touch = await fingers(page)
 

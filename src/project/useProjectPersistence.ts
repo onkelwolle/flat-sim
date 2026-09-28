@@ -11,7 +11,8 @@ type Persistence = ReturnType<typeof createProjectPersistence>
 
 /**
  * Restores the saved project into the plan store on mount, then keeps it
- * saved in IndexedDB. `restoring` holds until the saved project is shown.
+ * saved in IndexedDB. `restoring` holds until the saved project is shown, or
+ * until restoring takes too long and the app starts empty.
  */
 export function useProjectPersistence(viewport: Size) {
   const [restoring, setRestoring] = useState(true)

@@ -56,11 +56,17 @@ class FakeRepository implements ProjectRepository {
   clears = 0
   failLoad: Error | null = null
   failWrites = false
+  /** While set, loading waits until `finishLoad` is called. */
+  loadHangs = false
+  finishLoad = () => {}
   project: SavedProject | null
   constructor(project: SavedProject | null = null) {
     this.project = project
   }
   async load() {
+    if (this.loadHangs) {
+      await new Promise<void>((resolve) => (this.finishLoad = resolve))
+    }
     if (this.failLoad) throw this.failLoad
     return this.project
   }
@@ -108,6 +114,74 @@ describe('restoring the project', () => {
     expect(state.calibration).toEqual(calibration)
     expect(state.furniture).toEqual(saved.furniture)
     expect(state.view).toEqual({ scale: 0.5, x: 0, y: 150 })
+  })
+})
+
+describe('a restore that takes too long', () => {
+  const hanging = () => {
+    const repository = new FakeRepository(saved)
+    repository.loadHangs = true
+    return setUp(repository)
+  }
+
+  it('starts empty with a notice after 5 s, and saves changes from then on', async () => {
+    const { store, repository, persistence, lastNotice } = hanging()
+    let restored = false
+    void persistence.restore(viewport).then(() => (restored = true))
+
+    await vi.advanceTimersByTimeAsync(4999)
+    expect(restored).toBe(false)
+    await vi.advanceTimersByTimeAsync(1)
+    expect(restored).toBe(true)
+    expect(store.getState().plan).toBeNull()
+    expect(lastNotice()).toBe('storage-unavailable')
+
+    store.getState().offerPlan(plan('flat.png'), viewport)
+    await vi.advanceTimersByTimeAsync(500)
+    expect(repository.saves.at(-1)?.plan?.name).toBe('flat.png')
+  })
+
+  it('shows the saved project if it arrives late while the project is still empty', async () => {
+    const { store, repository, persistence, lastNotice } = hanging()
+    const restoring = persistence.restore(viewport)
+    await vi.advanceTimersByTimeAsync(5000)
+    await restoring
+
+    repository.finishLoad()
+    await vi.advanceTimersByTimeAsync(2000)
+
+    expect(store.getState().plan?.name).toBe('flat.png')
+    expect(store.getState().furniture).toEqual(saved.furniture)
+    expect(lastNotice()).toBeNull()
+    expect(repository.saves).toEqual([])
+  })
+
+  it('keeps changes made before the saved project arrives late', async () => {
+    const { store, repository, persistence } = hanging()
+    const restoring = persistence.restore(viewport)
+    await vi.advanceTimersByTimeAsync(5000)
+    await restoring
+    store.getState().offerPlan(plan('new.png'), viewport)
+
+    repository.finishLoad()
+    await vi.advanceTimersByTimeAsync(2000)
+
+    expect(store.getState().plan?.name).toBe('new.png')
+    expect(store.getState().furniture).toEqual([])
+    expect(repository.project?.plan?.name).toBe('new.png')
+  })
+
+  it('does not restore late once stopped', async () => {
+    const { store, repository, persistence } = hanging()
+    const restoring = persistence.restore(viewport)
+    await vi.advanceTimersByTimeAsync(5000)
+    await restoring
+
+    persistence.stop()
+    repository.finishLoad()
+    await vi.advanceTimersByTimeAsync(2000)
+
+    expect(store.getState().plan).toBeNull()
   })
 })
 

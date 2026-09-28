@@ -4,6 +4,7 @@ import {
   expectPlanColour,
   expectWidePlanFitted,
   pickFile,
+  tallPlan,
   widePlan,
 } from './plan.ts'
 
@@ -297,6 +298,28 @@ test.describe('moving and rotating', () => {
     await expectFurnitureAt(page, 500, 360)
     await expectFurnitureAt(page, 600, 290, false)
     await expectFurnitureAt(page, 600, 300)
+    await expectWidePlanFitted(page)
+  })
+
+  test('keys pressed while a dialog is open only affect the dialog', async ({
+    page,
+  }) => {
+    await pickFile(page, tallPlan)
+    const dialog = page.getByRole('dialog', {
+      name: 'Replace the current plan?',
+    })
+    await expect(dialog).toBeVisible()
+    // Not typed into the dialog's buttons, so only the open dialog protects
+    await page.evaluate(() => (document.activeElement as HTMLElement).blur())
+
+    await page.keyboard.press('Shift+ArrowRight')
+    await page.keyboard.press('Delete')
+    await page.keyboard.press('Escape')
+
+    await expect(dialog).toBeHidden()
+    await expect(status(page)).toHaveText(/^Sofa selected\./)
+    await expectFurnitureAt(page, 485, 360)
+    await expectFurnitureAt(page, 475, 360, false)
     await expectWidePlanFitted(page)
   })
 

@@ -1,4 +1,5 @@
-import { useEffect, useId, type ReactNode } from 'react'
+import { useId, type ReactNode } from 'react'
+import { useModalDialog } from '../dialogs'
 
 /** In-page yes/no prompt; Escape or Cancel keeps things as they are. */
 export function ConfirmDialog({
@@ -16,13 +17,7 @@ export function ConfirmDialog({
 }) {
   const titleId = useId()
 
-  useEffect(() => {
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onCancel()
-    }
-    window.addEventListener('keydown', onKeyDown)
-    return () => window.removeEventListener('keydown', onKeyDown)
-  }, [onCancel])
+  useModalDialog(onCancel)
 
   return (
     <div className="backdrop">

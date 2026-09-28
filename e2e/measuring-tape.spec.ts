@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
-import { expectWidePlanFitted, pickFile, widePlan } from './plan.ts'
+import { expectWidePlanFitted, pickFile, tallPlan, widePlan } from './plan.ts'
 
 test.use({ viewport: { width: 1280, height: 720 } })
 
@@ -110,6 +110,25 @@ test.describe('once calibrated', () => {
     await expect(status(page)).toHaveText(/Click or drag between two points/)
     await measureButton(page).click()
     await expect(status(page)).toHaveText('Scale: 1 m = 50 plan px')
+  })
+
+  test('Esc in a dialog closes only the dialog, keeping the tape and its measurement', async ({
+    page,
+  }) => {
+    await page.mouse.click(320, 360)
+    await page.mouse.click(960, 360)
+    await expect(status(page)).toHaveText(/^Distance: 4\.00 m\./)
+
+    await pickFile(page, tallPlan)
+    const dialog = page.getByRole('dialog', {
+      name: 'Replace the current plan?',
+    })
+    await expect(dialog).toBeVisible()
+    await page.keyboard.press('Escape')
+
+    await expect(dialog).toBeHidden()
+    await expect(measureButton(page)).toHaveAttribute('aria-pressed', 'true')
+    await expect(status(page)).toHaveText(/^Distance: 4\.00 m\./)
   })
 
   test('recalibrating leaves the tape', async ({ page }) => {

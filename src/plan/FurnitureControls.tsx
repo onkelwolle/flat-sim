@@ -1,4 +1,5 @@
-import { useEffect, useState, type MouseEvent } from 'react'
+import { useState, type MouseEvent } from 'react'
+import { useModalDialog } from '../dialogs'
 import type { Size } from '../useViewportSize'
 import {
   planStore,
@@ -169,13 +170,7 @@ function AddFurnitureDialog({
   })
   const [error, setError] = useState<{ field: Field; message: string }>()
 
-  useEffect(() => {
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onCancel()
-    }
-    window.addEventListener('keydown', onKeyDown)
-    return () => window.removeEventListener('keydown', onKeyDown)
-  }, [onCancel])
+  useModalDialog(onCancel)
 
   const input = (field: Field, label: string, decimal = false) => (
     <label>

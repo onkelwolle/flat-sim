@@ -1,5 +1,6 @@
 import type Konva from 'konva'
 import { useEffect, useRef, type RefObject } from 'react'
+import { isDialogOpen } from '../dialogs'
 import { distance, snapToAngle } from './geometry'
 import { planStore, usePlanStore } from './planStore'
 import type { Point } from './zoomView'
@@ -43,6 +44,7 @@ export function useMeasuringTape(
   useEffect(() => {
     if (!active) return
     const onKey = (e: KeyboardEvent) => {
+      if (isDialogOpen()) return
       const store = planStore.getState()
       if (e.type === 'keydown' && e.key === 'Escape') store.stopMeasuring()
       // Pressing or releasing Shift re-snaps without moving the pointer

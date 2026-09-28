@@ -21,7 +21,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "playwright test",
-    "prepare": "git config core.hooksPath .githooks || true"
+    "prepare": "git config core.hooksPath .githooks || true",
+    "screenshot": "UPDATE_SCREENSHOT=1 playwright test e2e/readme-screenshot.spec.ts"
   },
   "dependencies": {
     "idb": "^8.0.3",

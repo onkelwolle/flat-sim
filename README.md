@@ -4,6 +4,8 @@ Plan where your furniture goes before you move it. Open a floor plan, set its sc
 
 **Try it:** https://onkelwolle.github.io/flat-sim/
 
+![A furnished sample flat in flat-sim, measuring the gap between sofa and coffee table](docs/screenshot.png)
+
 ## Features
 
 - Open a floor plan image (drop it on the page or pick a file)
@@ -43,7 +45,7 @@ Further reading:
 - [`docs/adr/`](docs/adr/): architecture decisions
 - [`CLAUDE.md`](CLAUDE.md): notes for coding agents
 
-`main` deploys to GitHub Pages on every push.
+`main` deploys to GitHub Pages on every push. After UI changes, refresh the screenshot above with `pnpm screenshot`.
 
 ## License
 

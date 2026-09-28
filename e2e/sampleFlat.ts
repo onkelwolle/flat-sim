@@ -25,13 +25,33 @@ export const toPx = (x: number, y: number): [number, number] => [
 
 type Rect = { x: number; y: number; width: number; depth: number }
 
+type Room = Rect & {
+  name: string
+  /** Where the name goes, in metres, if not the room's centre. */
+  label?: [number, number]
+}
+
 export const ROOMS = {
-  living: { name: 'Living room', x: 0, y: 0, width: 5.5, depth: 3.4 },
+  living: {
+    name: 'Living room',
+    x: 0,
+    y: 0,
+    width: 5.5,
+    depth: 3.4,
+    label: [4.3, 1.3],
+  },
   kitchen: { name: 'Kitchen', x: 5.5, y: 0, width: 4.5, depth: 3.4 },
-  bedroom: { name: 'Bedroom', x: 0, y: 3.4, width: 4, depth: 2.4 },
+  bedroom: {
+    name: 'Bedroom',
+    x: 0,
+    y: 3.4,
+    width: 4,
+    depth: 2.4,
+    label: [2.65, 4.4],
+  },
   hall: { name: 'Hall', x: 4, y: 3.4, width: 2.5, depth: 2.4 },
   bathroom: { name: 'Bathroom', x: 6.5, y: 3.4, width: 3.5, depth: 2.4 },
-} satisfies Record<string, Rect & { name: string }>
+} satisfies Record<string, Room>
 
 /** A gap in a wall: along x (horizontal wall at `at`) or y (vertical). */
 type Opening = { along: 'x' | 'y'; at: number; from: number; to: number }
@@ -158,8 +178,10 @@ const doorSwing = (d: Door) => {
   )
 }
 
-const roomLabel = (room: Rect & { name: string }) => {
-  const [cx, cy] = toPx(room.x + room.width / 2, room.y + room.depth / 2)
+const roomLabel = (room: Room) => {
+  const [cx, cy] = toPx(
+    ...(room.label ?? [room.x + room.width / 2, room.y + room.depth / 2]),
+  )
   const area = (room.width * room.depth).toFixed(1)
   return (
     `<text x="${cx}" y="${cy - 4}" font-size="20" font-weight="600" text-anchor="middle" fill="#333">${room.name}</text>` +

@@ -204,3 +204,102 @@ export const expectLabelCentredAt = async (
     .toEqual({ x, y })
   return size
 }
+
+/**
+ * A dimension label's text as drawn, on screen: its centre and size, and the
+ * centre of its ink, which lies towards where it ends (the unit's wide "m").
+ */
+export type DimensionLabel = {
+  x: number
+  y: number
+  width: number
+  height: number
+  ink: { x: number; y: number }
+}
+
+/**
+ * Where the furniture layer draws white within `region` (viewport pixels):
+ * the text of a dimension label there, the only white it draws away from the
+ * rotate handle. Null if none.
+ */
+const whiteTextIn = (page: Page, region: Box) =>
+  page.evaluate(
+    ([layer, region]) => {
+      const canvas = document.querySelectorAll('canvas')[layer]!
+      const ratio = canvas.width / canvas.clientWidth
+      const width = Math.round((region.right - region.left) * ratio)
+      const height = Math.round((region.bottom - region.top) * ratio)
+      const { data } = canvas
+        .getContext('2d')!
+        .getImageData(
+          Math.round(region.left * ratio),
+          Math.round(region.top * ratio),
+          width,
+          height,
+        )
+      let box: Box | null = null
+      const ink = { x: 0, y: 0, n: 0 }
+      for (let y = 0; y < height; y++) {
+        for (let x = 0; x < width; x++) {
+          const i = (y * width + x) * 4
+          if (data[i + 3]! < 250) continue
+          if (Math.min(data[i]!, data[i + 1]!, data[i + 2]!) < 240) continue
+          ink.x += x + 0.5
+          ink.y += y + 0.5
+          ink.n++
+          box ??= { left: x, top: y, right: x + 1, bottom: y + 1 }
+          box.left = Math.min(box.left, x)
+          box.right = Math.max(box.right, x + 1)
+          box.top = Math.min(box.top, y)
+          box.bottom = Math.max(box.bottom, y + 1)
+        }
+      }
+      return (
+        box && {
+          x: region.left + (box.left + box.right) / 2 / ratio,
+          y: region.top + (box.top + box.bottom) / 2 / ratio,
+          width: (box.right - box.left) / ratio,
+          height: (box.bottom - box.top) / ratio,
+          ink: {
+            x: region.left + ink.x / ink.n / ratio,
+            y: region.top + ink.y / ink.n / ratio,
+          },
+        }
+      )
+    },
+    [FURNITURE_LAYER, region] as const,
+  )
+
+/**
+ * That the furniture layer draws a dimension label's text within `region`,
+ * centred within 3 px of (`x`, `y`); resolves to the label as drawn.
+ */
+export const expectDimensionLabelAt = async (
+  page: Page,
+  region: Box,
+  x: number,
+  y: number,
+) => {
+  let label: DimensionLabel | null = null
+  await expect
+    .poll(
+      async () => {
+        label = await whiteTextIn(page, region)
+        if (!label) return null
+        // Report the target itself when close enough, else where it is
+        const near = Math.hypot(label.x - x, label.y - y) <= 3
+        return near ? { x, y } : { x: label.x, y: label.y }
+      },
+      { message: `dimension label should be centred at (${x}, ${y})` },
+    )
+    .toEqual({ x, y })
+  return label!
+}
+
+/** That the furniture layer draws no dimension label within `region`. */
+export const expectNoDimensionLabel = (page: Page, region: Box) =>
+  expect
+    .poll(() => whiteTextIn(page, region), {
+      message: 'no dimension label should be drawn there',
+    })
+    .toBeNull()

@@ -114,3 +114,11 @@ export const labelFlipped = (rotationDeg: number) => {
   const deg = snapRotation(rotationDeg, null)
   return deg > 90 && deg <= 270
 }
+
+/**
+ * The clockwise rotation, in [0, 360), for text along a line turned `deg`:
+ * the line's own, or half a turn on from it if that would read upside down,
+ * so the text reads from the bottom or the right of the plan.
+ */
+export const readableRotation = (deg: number) =>
+  snapRotation(labelFlipped(deg) ? deg + 180 : deg, null)

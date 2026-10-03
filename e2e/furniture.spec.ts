@@ -1,7 +1,10 @@
 import { expect, test, type Page } from '@playwright/test'
 import {
   canvasDrawn,
+  type DimensionLabel,
+  expectDimensionLabelAt,
   expectFurnitureAt,
+  expectNoDimensionLabel,
   expectPlanColour,
   expectWidePlanFitted,
   pickFile,
@@ -426,6 +429,104 @@ test.describe('moving and rotating', () => {
     await formDialog(page).getByRole('button', { name: 'Cancel' }).click()
 
     await expectFurnitureAt(page, 485, 285)
+  })
+})
+
+test.describe('dimension labels', () => {
+  // A 200 × 100 cm sofa is 320 × 160 screen px around (640, 360): its edges
+  // at x = 480 and 800, y = 280 and 440. The rotate handle is above it.
+  const below = { left: 400, top: 444, right: 880, bottom: 720 }
+  const right = { left: 804, top: 200, right: 1280, bottom: 520 }
+
+  test.beforeEach(async ({ page }) => {
+    await calibrate(page, '4')
+    await addFurniture(page, 'Sofa', '200', '100')
+  })
+
+  test('label the selected item’s width below it and its depth to its right', async ({
+    page,
+  }) => {
+    const width = await expectDimensionLabelAt(page, below, 640, 456)
+    const depth = await expectDimensionLabelAt(page, right, 816, 360)
+    // Each runs along its edge
+    expect(width.width).toBeGreaterThan(width.height)
+    expect(depth.height).toBeGreaterThan(depth.width)
+
+    await page.mouse.click(200, 600)
+    await expectNoDimensionLabel(page, below)
+    await expectNoDimensionLabel(page, right)
+  })
+
+  test('labels read from the bottom or the right however the item is turned', async ({
+    page,
+  }) => {
+    const rotation = page
+      .getByRole('complementary', { name: 'Selected item' })
+      .getByLabel('Rotation (°)')
+    const above = { left: 400, top: 236, right: 880, bottom: 276 }
+    const left = { left: 0, top: 200, right: 476, bottom: 520 }
+
+    // Text drawn upside down would have its ink on the other side of centre
+    const inkOffset = (label: DimensionLabel) => ({
+      x: label.ink.x - label.x,
+      y: label.ink.y - label.y,
+    })
+    const unturned = {
+      width: await expectDimensionLabelAt(page, below, 640, 456),
+      depth: await expectDimensionLabelAt(page, right, 816, 360),
+    }
+
+    // Half a turn: the width is above it, the depth to its left, drawn the
+    // same way up
+    await rotation.fill('180')
+    await rotation.press('Enter')
+    const width = await expectDimensionLabelAt(page, above, 640, 264)
+    const depth = await expectDimensionLabelAt(page, left, 464, 360)
+    expect(width.width).toBeGreaterThan(width.height)
+    expect(depth.height).toBeGreaterThan(depth.width)
+    for (const [turned, label] of [
+      [width, unturned.width],
+      [depth, unturned.depth],
+    ] as const) {
+      expect(Math.abs(inkOffset(turned).x - inkOffset(label).x)).toBeLessThan(1)
+      expect(Math.abs(inkOffset(turned).y - inkOffset(label).y)).toBeLessThan(1)
+    }
+  })
+
+  test('labels keep their size and distance from the edge at any zoom', async ({
+    page,
+  }) => {
+    const size = await expectDimensionLabelAt(page, below, 640, 456)
+
+    // Zooming in around the bottom edge's middle keeps that edge put
+    await page.mouse.move(640, 440)
+    await page.mouse.wheel(0, -100)
+    await expectFurnitureAt(page, 640, 270)
+    const zoomed = await expectDimensionLabelAt(page, below, 640, 456)
+    expect(Math.abs(zoomed.width - size.width)).toBeLessThan(1)
+    expect(Math.abs(zoomed.height - size.height)).toBeLessThan(1)
+  })
+
+  test('labels follow the item as it is dragged and resized', async ({
+    page,
+  }) => {
+    // Mid-drag, 100 px right and 40 px down
+    await page.mouse.move(700, 360)
+    await page.mouse.down()
+    await page.mouse.move(800, 400, { steps: 5 })
+    await expectDimensionLabelAt(page, below, 740, 496)
+    await expectDimensionLabelAt(page, { ...right, left: 904 }, 916, 400)
+    await page.mouse.up()
+
+    // Back, then resized to 300 × 50 cm: 480 × 80 screen px
+    await page.keyboard.press('Control+z')
+    const panel = page.getByRole('complementary', { name: 'Selected item' })
+    await panel.getByLabel('Width (cm)').fill('300')
+    await panel.getByLabel('Width (cm)').press('Enter')
+    await expectDimensionLabelAt(page, { ...right, left: 884 }, 896, 360)
+    await panel.getByLabel('Depth (cm)').fill('50')
+    await panel.getByLabel('Depth (cm)').press('Enter')
+    await expectDimensionLabelAt(page, { ...below, top: 404 }, 640, 416)
   })
 })
 

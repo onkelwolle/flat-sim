@@ -14,7 +14,8 @@ export type LineHandles = 'both' | 'start' | 'none'
  * the calibration line, a measurement. Points are in plan pixels; strokes,
  * handles and label keep a constant size on screen at `zoom`, the scale the
  * plan is drawn at. Without `end`, only the start's handle is drawn (the
- * first point placed); without `label`, just the line.
+ * first point placed); without `label`, just the line. The label is turned
+ * `labelRotation` degrees clockwise about its centre.
  */
 export function MeasuredLine({
   start,
@@ -24,6 +25,7 @@ export function MeasuredLine({
   zoom,
   dashed = false,
   handles = 'both',
+  labelRotation = 0,
 }: {
   start: Point
   end?: Point | null
@@ -32,6 +34,7 @@ export function MeasuredLine({
   zoom: number
   dashed?: boolean
   handles?: LineHandles
+  labelRotation?: number
 }) {
   const handlePoints =
     handles === 'none'
@@ -67,23 +70,29 @@ export function MeasuredLine({
           text={label}
           colour={colour}
           zoom={zoom}
+          rotation={labelRotation}
         />
       )}
     </Group>
   )
 }
 
-/** A label centred on `at`, in screen pixels whatever the `zoom`. */
+/**
+ * A label centred on `at`, in screen pixels whatever the `zoom`, turned
+ * `rotation` degrees clockwise about its centre.
+ */
 function LengthLabel({
   at,
   text,
   colour,
   zoom,
+  rotation,
 }: {
   at: Point
   text: string
   colour: string
   zoom: number
+  rotation: number
 }) {
   // Konva sizes a label by its text; measure it to centre the label on `at`
   const size = useMemo(() => {
@@ -101,6 +110,7 @@ function LengthLabel({
     <Label
       x={at.x}
       y={at.y}
+      rotation={rotation}
       scaleX={1 / zoom}
       scaleY={1 / zoom}
       offsetX={size.width / 2}

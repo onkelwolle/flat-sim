@@ -4,17 +4,27 @@ import { useEffect, useRef, useState, type RefObject } from 'react'
 import { Group, Layer, Rect, Text, Transformer } from 'react-konva'
 import { useShallow } from 'zustand/react/shallow'
 import { useCoarsePointer } from '../useMediaQuery'
-import { labelFlipped, ROTATION_STEP, snapRotation } from './geometry'
+import {
+  labelFlipped,
+  readableRotation,
+  ROTATION_STEP,
+  snapRotation,
+} from './geometry'
+import { MeasuredLine } from './MeasuredLine'
 import {
   planStore,
   selectFurnitureSizePx,
   usePlanStore,
   type Furniture,
 } from './planStore'
+import { formatLength } from './scale'
 
 const FILL = 'rgba(236, 201, 75, 0.6)'
 const STROKE = '#975a16'
 const SELECTED = '#2b6cb0'
+
+/** How far outside its edge a dimension line runs, in screen pixels. */
+const DIMENSION_OFFSET = 16
 
 /**
  * The rotate handle for fingers: bigger, further from the item so the finger
@@ -104,6 +114,7 @@ export function FurnitureLayer({
           interruptedRef={interruptedRef}
         />
       ))}
+      <SelectedDimensions zoom={zoom} />
       <Transformer
         ref={transformerRef}
         resizeEnabled={false}
@@ -214,6 +225,85 @@ function FurnitureItem({
           listening={false}
         />
       </Group>
+    </Group>
+  )
+}
+
+/** Where an item is drawn: its centre and clockwise rotation. */
+type Pose = { x: number; y: number; rotation: number }
+
+/**
+ * The selected item's width and depth, each on a line along its edge: the
+ * width below it, the depth to its right, clear of the rotate handle above,
+ * each label reading from the bottom or the right however the item is turned.
+ * Drawn beside the item rather than in it, so the rotate handle fits the item
+ * alone, and following it as it is dragged or turned; strokes and labels keep
+ * a constant size on screen at `zoom`.
+ */
+function SelectedDimensions({ zoom }: { zoom: number }) {
+  const item = usePlanStore((s) =>
+    s.furniture.find((f) => f.id === s.selectedId),
+  )
+  const size = usePlanStore(
+    useShallow((s) => (item ? selectFurnitureSizePx(s, item) : null)),
+  )
+  const groupRef = useRef<Konva.Group>(null)
+  // Where the item is while a drag or turn moves it; the stored pose else
+  const [moving, setMoving] = useState<Pose | null>(null)
+  const id = item?.id
+
+  useEffect(() => {
+    const node = id
+      ? groupRef.current?.getLayer()?.findOne(`#${id}`)
+      : undefined
+    if (!node) return
+    const follow = () =>
+      setMoving({ x: node.x(), y: node.y(), rotation: node.rotation() })
+    const stop = () => setMoving(null)
+    node.on('dragmove.dimensions transform.dimensions', follow)
+    node.on('dragend.dimensions transformend.dimensions', stop)
+    return () => {
+      node.off('.dimensions')
+      setMoving(null)
+    }
+  }, [id])
+
+  if (!item || !size) return <Group ref={groupRef} />
+  const pose = moving ?? { ...item.position, rotation: item.rotationDeg }
+  const { width, height } = size
+  const offset = DIMENSION_OFFSET / zoom
+  const bottom = height / 2 + offset
+  const right = width / 2 + offset
+  // Each label along its line, turned to read from the bottom or the right
+  const labelRotation = (lineDeg: number) =>
+    readableRotation(pose.rotation + lineDeg) - pose.rotation
+
+  return (
+    <Group
+      ref={groupRef}
+      x={pose.x}
+      y={pose.y}
+      rotation={pose.rotation}
+      listening={false}
+    >
+      <MeasuredLine
+        start={{ x: -width / 2, y: bottom }}
+        end={{ x: width / 2, y: bottom }}
+        label={formatLength(item.widthCm)}
+        colour={SELECTED}
+        zoom={zoom}
+        handles="none"
+        labelRotation={labelRotation(0)}
+      />
+      <MeasuredLine
+        start={{ x: right, y: -height / 2 }}
+        end={{ x: right, y: height / 2 }}
+        label={formatLength(item.depthCm)}
+        colour={SELECTED}
+        zoom={zoom}
+        handles="none"
+        labelRotation={labelRotation(90)}
+      />
     </Group>
   )
 }

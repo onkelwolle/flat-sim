@@ -7,6 +7,7 @@ import {
 } from 'react'
 import { useModalDialog } from '../dialogs'
 import { DialogBackdrop } from '../DialogBackdrop'
+import { useCoarsePointer } from '../useMediaQuery'
 import type { Size } from '../useViewportSize'
 import {
   planStore,
@@ -81,15 +82,21 @@ export function DeleteFurnitureButton({
   )
 }
 
-/** What the status bar shows while an item is selected. */
+/**
+ * What the status bar shows while an item is selected. On a touch screen,
+ * which likely has no keyboard, it points to the Delete item command instead
+ * of the Delete key.
+ */
 export function FurnitureStatus() {
   const name = usePlanStore(
     (s) => s.furniture.find((f) => f.id === s.selectedId)?.name,
   )
+  const touch = useCoarsePointer()
 
   return (
     <p className="status" role="status">
-      {name} selected. Press Delete to remove it.
+      {name} selected.{' '}
+      {touch ? 'Tap Delete item to remove it.' : 'Press Delete to remove it.'}
     </p>
   )
 }

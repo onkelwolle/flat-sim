@@ -21,6 +21,7 @@ import {
   type FurnitureSpec,
 } from './planStore'
 import { parseRotation } from './geometry'
+import { presetLibrary, type Preset, type PresetList } from './presets'
 import { parseLength } from './scale'
 
 /**
@@ -361,7 +362,10 @@ function AddFurnitureDialog({
   onCancel: () => void
 }) {
   const [text, setText] = useState(lastAdded)
-  const [error, setError] = useState<{ field: Field; message: string }>()
+  const [error, setError] = useState<{ field?: Field; message: string }>()
+  const [presets, setPresets] = useState(() => presetLibrary.list())
+  // The preset picked, as its option's value; '' for none
+  const [picked, setPicked] = useState('')
 
   useModalDialog(onCancel)
 
@@ -385,6 +389,56 @@ function AddFurnitureDialog({
     </label>
   )
 
+  // The item the form describes, or undefined once its error is shown
+  const parse = (): FurnitureSpec | undefined => {
+    const name = parseName(text.name)
+    const widthCm = parseLength(text.width, 'cm')
+    const depthCm = parseLength(text.depth, 'cm')
+    if (!name) return void setError({ field: 'name', message: NAME_ERROR })
+    if (widthCm === null)
+      return void setError({ field: 'width', message: SIZE_ERROR })
+    if (depthCm === null)
+      return void setError({ field: 'depth', message: SIZE_ERROR })
+    return { name, widthCm, depthCm }
+  }
+
+  const pick = (value: string) => {
+    setPicked(value)
+    const preset = presetOf(presets, value)
+    if (!preset) return
+    setText({
+      name: preset.name,
+      width: String(preset.widthCm),
+      depth: String(preset.depthCm),
+    })
+    setError(undefined)
+  }
+
+  // Saved and picked, so the form can go on to add it
+  const saveAsPreset = () => {
+    const spec = parse()
+    if (!spec) return
+    if (!presetLibrary.save(spec))
+      return setError({ message: PRESET_SAVE_ERROR })
+    const next = presetLibrary.list()
+    setPresets(next)
+    const saved = next.user.find((p) => p.name === spec.name)
+    setPicked(saved ? userValue(saved) : '')
+  }
+
+  // The form keeps what the preset filled it with
+  const deletePreset = (preset: Preset) => {
+    if (!presetLibrary.remove(preset.name))
+      return setError({ message: PRESET_DELETE_ERROR })
+    setPresets(presetLibrary.list())
+    setPicked('')
+  }
+
+  // Only saved presets can be deleted
+  const pickedSaved = picked.startsWith(SAVED)
+    ? presetOf(presets, picked)
+    : undefined
+
   return (
     <DialogBackdrop>
       <form
@@ -394,29 +448,63 @@ function AddFurnitureDialog({
         className="dialog"
         onSubmit={(e) => {
           e.preventDefault()
-          const name = parseName(text.name)
-          const widthCm = parseLength(text.width, 'cm')
-          const depthCm = parseLength(text.depth, 'cm')
-          if (!name) return setError({ field: 'name', message: NAME_ERROR })
-          if (widthCm === null)
-            return setError({ field: 'width', message: SIZE_ERROR })
-          if (depthCm === null)
-            return setError({ field: 'depth', message: SIZE_ERROR })
+          const spec = parse()
+          if (!spec) return
           lastAdded = {
-            name,
-            width: String(widthCm),
-            depth: String(depthCm),
+            name: spec.name,
+            width: String(spec.widthCm),
+            depth: String(spec.depthCm),
           }
-          onSubmit({ name, widthCm, depthCm })
+          onSubmit(spec)
         }}
       >
         <h2 id="add-furniture-title">Add furniture</h2>
         <p>The item appears in the middle of the view.</p>
+        <div className="preset-picker">
+          <label>
+            Preset
+            <select
+              className="input"
+              value={picked}
+              onChange={(e) => pick(e.currentTarget.value)}
+            >
+              <option value="">Choose a preset…</option>
+              {presets.user.length > 0 && (
+                <optgroup label="Saved">
+                  {presets.user.map((p) => (
+                    <option key={p.name} value={userValue(p)}>
+                      {presetLabel(p)}
+                    </option>
+                  ))}
+                </optgroup>
+              )}
+              <optgroup label="Built-in">
+                {presets.builtIn.map((p, i) => (
+                  <option key={i} value={`${BUILT_IN}${i}`}>
+                    {presetLabel(p)}
+                  </option>
+                ))}
+              </optgroup>
+            </select>
+          </label>
+          {pickedSaved && (
+            <button
+              type="button"
+              className="button"
+              onClick={() => deletePreset(pickedSaved)}
+            >
+              Delete preset
+            </button>
+          )}
+        </div>
         <div className="furniture-fields">
           {input('name', 'Name')}
           {input('width', 'Width (cm)', true)}
           {input('depth', 'Depth (cm)', true)}
         </div>
+        <button type="button" className="button" onClick={saveAsPreset}>
+          Save as preset
+        </button>
         {error && (
           <p className="error" role="alert">
             {error.message}
@@ -435,6 +523,23 @@ function AddFurnitureDialog({
   )
 }
 
+// A preset's option value: its place among the built-ins, or its saved name
+const BUILT_IN = 'built-in:'
+const SAVED = 'saved:'
+const userValue = (preset: Preset) => `${SAVED}${preset.name}`
+
+const presetOf = (presets: PresetList, value: string) =>
+  value.startsWith(BUILT_IN)
+    ? presets.builtIn[Number(value.slice(BUILT_IN.length))]
+    : presets.user.find((p) => userValue(p) === value)
+
+const presetLabel = ({ name, widthCm, depthCm }: Preset) =>
+  `${name} (${widthCm} × ${depthCm} cm)`
+
+const PRESET_SAVE_ERROR =
+  "The preset couldn't be saved: this browser won't keep it."
+const PRESET_DELETE_ERROR =
+  "The preset couldn't be deleted: this browser won't change it."
 const NAME_ERROR = 'Enter a name.'
 const SIZE_ERROR = 'Enter a width and depth greater than zero.'
 const ROTATION_ERROR = 'Enter a rotation in degrees.'

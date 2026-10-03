@@ -202,6 +202,94 @@ test.describe('once calibrated', () => {
     await expect(form.getByLabel('Name')).toHaveValue('')
   })
 
+  test('picking a preset fills the form, editable before adding', async ({
+    page,
+  }) => {
+    await addButton(page).click()
+    const form = formDialog(page)
+    await form.getByLabel('Preset').selectOption('Bed (160 × 200 cm)')
+
+    await expect(form.getByLabel('Name')).toHaveValue('Bed')
+    await expect(form.getByLabel('Width (cm)')).toHaveValue('160')
+    await expect(form.getByLabel('Depth (cm)')).toHaveValue('200')
+    // Built-ins can't be deleted
+    await expect(
+      form.getByRole('button', { name: 'Delete preset' }),
+    ).toBeHidden()
+
+    await form.getByLabel('Width (cm)').fill('200')
+    await form.getByLabel('Depth (cm)').fill('100')
+    await form.getByRole('button', { name: 'Add', exact: true }).click()
+    await expect(form).toBeHidden()
+    await canvasDrawn(page)
+
+    // 200 × 100 cm, as edited, not 160 × 200
+    await expectFurnitureAt(page, 485, 285)
+    await expectFurnitureAt(page, 795, 435)
+    await expectFurnitureAt(page, 640, 200, false)
+    await expect(status(page)).toHaveText(/^Bed selected\./)
+  })
+
+  test('saved presets are offered on later visits until deleted', async ({
+    page,
+  }) => {
+    await addButton(page).click()
+    const form = formDialog(page)
+    const preset = form.getByLabel('Preset')
+
+    // Checked like Add
+    await form.getByLabel('Name').fill('Piano')
+    await form.getByRole('button', { name: 'Save as preset' }).click()
+    await expect(form.getByRole('alert')).toHaveText(/greater than zero/)
+
+    await form.getByLabel('Width (cm)').fill('150')
+    await form.getByLabel('Depth (cm)').fill('60')
+    await form.getByRole('button', { name: 'Save as preset' }).click()
+    await expect(form.getByRole('alert')).toBeHidden()
+    // Saved, and picked: the form stays open to add it
+    await expect(preset.locator('option:checked')).toHaveText(
+      'Piano (150 × 60 cm)',
+    )
+    await form.getByRole('button', { name: 'Cancel' }).click()
+
+    // Another visit
+    await page.reload()
+    await pickFile(page, widePlan)
+    await expectWidePlanFitted(page)
+    await calibrate(page, '4')
+
+    await addButton(page).click()
+    await preset.selectOption('Piano (150 × 60 cm)')
+    await expect(form.getByLabel('Name')).toHaveValue('Piano')
+    await expect(form.getByLabel('Width (cm)')).toHaveValue('150')
+    await expect(form.getByLabel('Depth (cm)')).toHaveValue('60')
+
+    await form.getByRole('button', { name: 'Delete preset' }).click()
+    await expect(preset.getByRole('option', { name: /^Piano/ })).toHaveCount(0)
+    // The form keeps what it was filled with
+    await expect(form.getByLabel('Name')).toHaveValue('Piano')
+
+    await page.reload()
+    await pickFile(page, widePlan)
+    await expectWidePlanFitted(page)
+    await calibrate(page, '4')
+    await addButton(page).click()
+    await expect(preset.getByRole('option', { name: /^Piano/ })).toHaveCount(0)
+    await expect(
+      preset.getByRole('option', { name: 'Bed (160 × 200 cm)' }),
+    ).toHaveCount(1)
+  })
+
+  test('unreadable saved presets leave the built-ins', async ({ page }) => {
+    await page.evaluate(() => localStorage.setItem('flat-sim:presets', '{oops'))
+
+    await addButton(page).click()
+    const preset = formDialog(page).getByLabel('Preset')
+    await expect(preset.locator('optgroup')).toHaveCount(1)
+    await preset.selectOption('Wardrobe (200 × 60 cm)')
+    await expect(formDialog(page).getByLabel('Name')).toHaveValue('Wardrobe')
+  })
+
   test('clicking selects an item; clicking empty canvas deselects it', async ({
     page,
   }) => {

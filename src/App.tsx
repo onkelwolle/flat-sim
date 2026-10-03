@@ -43,7 +43,12 @@ function App() {
 
   // A click places a calibration point at once; a finger or pen where it lifts
   const onCalibratePress = (e: PointerEvent) => {
-    if (placing.begin(e)) return setPointer(pointerOnPlan())
+    if (placing.begin(e)) {
+      // No mousedown after the lift: on the second point it would land on
+      // the length dialog just shown and take focus from its Length field
+      e.preventDefault()
+      return setPointer(pointerOnPlan())
+    }
     const at = pointerOnPlan()
     if (at) planStore.getState().placeCalibrationPoint(at)
   }

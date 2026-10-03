@@ -130,7 +130,8 @@ export function FurnitureStatus() {
  * rotation in degrees. Shown only while an item is selected, below the screen
  * position `below` (the toolbar's bottom edge); as a `sheet`, it sits on the
  * phone's bottom bar instead, and `expandedSheetRef` holds it while it is
- * expanded.
+ * expanded. Rendered in the same place either way, it can switch between the
+ * two and keep what is typed in it.
  */
 export function FurniturePanel({
   below = 0,
@@ -171,7 +172,9 @@ function FurniturePanelForm({
   expandedSheetRef?: Ref<HTMLElement>
 }) {
   const [error, setError] = useState<{ field: PanelField; message: string }>()
-  // A sheet opens expanded, and collapses to its title to show the plan
+  // A sheet opens expanded, and collapses to its title to show the plan. The
+  // side panel always shows it all, but a sheet collapsed before widening the
+  // screen is collapsed again on narrowing it
   const [expanded, setExpanded] = useState(true)
   const bodyId = useId()
   const store = planStore.getState()
@@ -231,7 +234,7 @@ function FurniturePanelForm({
       <div
         id={bodyId}
         className={sheet ? 'sheet-body' : undefined}
-        hidden={!expanded}
+        hidden={sheet && !expanded}
       >
         <div className="panel-fields">
           <div className="panel-wide">

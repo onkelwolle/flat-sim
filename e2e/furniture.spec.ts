@@ -726,6 +726,53 @@ test.describe('the item panel', () => {
     await expect(panel(page).getByRole('alert')).toBeHidden()
   })
 
+  test('keeps unapplied text, errors and a collapsed sheet across the phone breakpoint', async ({
+    page,
+  }) => {
+    const rotation = panel(page).getByLabel('Rotation (°)')
+    const width = panel(page).getByLabel('Width (cm)')
+    const sheetTitle = panel(page).getByRole('button', { name: 'Sofa' })
+    await rotation.fill('left')
+    await rotation.press('Enter')
+    await width.fill('250')
+
+    const expectPanelAsTyped = async () => {
+      await expect(width).toBeVisible()
+      await expect(width).toHaveValue('250')
+      await expect(rotation).toHaveValue('left')
+      await expect(panel(page).getByRole('alert')).toHaveText(/rotation/)
+    }
+    const toPhone = async () => {
+      await page.setViewportSize({ width: 390, height: 720 })
+      await expect(page.locator('.bottom-bar')).toBeAttached()
+    }
+    const toDesktop = async () => {
+      await page.setViewportSize({ width: 1280, height: 720 })
+      await expect(page.locator('.toolbar')).toBeAttached()
+    }
+
+    // Narrowed to a phone, the sheet shows the same; collapsed there, the side
+    // panel still shows it all once widened again, ...
+    await toPhone()
+    await expectPanelAsTyped()
+    await sheetTitle.click()
+    await expect(sheetTitle).toHaveAttribute('aria-expanded', 'false')
+    await toDesktop()
+    await expectPanelAsTyped()
+
+    // ... and the sheet is still collapsed back on the phone
+    await toPhone()
+    await expect(sheetTitle).toHaveAttribute('aria-expanded', 'false')
+    await sheetTitle.click()
+    await expectPanelAsTyped()
+
+    // The typed width still applies
+    await width.press('Enter')
+    await expect(width).toHaveValue('250')
+    await toDesktop()
+    await expect(panel(page).getByLabel('Width (cm)')).toHaveValue('250')
+  })
+
   for (const label of ['Name', 'Width (cm)', 'Rotation (°)']) {
     test(`keys typed into ${label} do not nudge, delete or deselect the item`, async ({
       page,

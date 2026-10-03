@@ -2,7 +2,11 @@ import { useLayoutEffect, useRef, useState, type MouseEvent } from 'react'
 import { useKeyboardInset } from '../keyboardInset'
 import { usePhoneLayout } from '../useMediaQuery'
 import type { Size } from '../useViewportSize'
-import { CalibrateButton, CalibrationStatus } from './CalibrationControls'
+import {
+  CalibrateButton,
+  CalibrationLengthDialog,
+  CalibrationStatus,
+} from './CalibrationControls'
 import { ConfirmDialog } from './ConfirmDialog'
 import {
   AddFurnitureButton,
@@ -185,20 +189,31 @@ export function PlanControls({
 
       {!phone && status}
 
-      {!phone && <FurniturePanel below={toolbarBottom} />}
-
-      {phone && (
-        <div
-          className="bottom-dock"
-          // With the on-screen keyboard up, the bar goes behind it and the
-          // sheet, and the field being typed in, sits on it. The canvas stays
-          // as it is (it fills the page, which the keyboard doesn't resize)
-          style={{ bottom: Math.max(0, keyboard - barHeight) }}
-        >
-          {errorMessage}
-          {status}
-          {/* Before the bar, so the open menu covers it */}
-          <FurniturePanel sheet expandedSheetRef={expandedSheet} />
+      {/* The dock is there in both layouts, so the item panel keeps its place
+          in the tree, and with it unapplied text, an error and whether the
+          sheet is collapsed, while it turns from side panel into sheet */}
+      <div
+        className={phone ? 'bottom-dock' : undefined}
+        style={
+          phone
+            ? // With the on-screen keyboard up, the bar goes behind it and the
+              // sheet, and the field being typed in, sits on it. The canvas
+              // stays as it is (it fills the page, which the keyboard doesn't
+              // resize)
+              { bottom: Math.max(0, keyboard - barHeight) }
+            : // No box of its own: the panel sits at the side
+              { display: 'contents' }
+        }
+      >
+        {phone && errorMessage}
+        {phone && status}
+        {/* Before the bar, so the open menu covers it */}
+        <FurniturePanel
+          sheet={phone}
+          below={toolbarBottom}
+          expandedSheetRef={expandedSheet}
+        />
+        {phone && (
           <div
             ref={(element) => {
               bar.current = element
@@ -249,10 +264,12 @@ export function PlanControls({
               openPlanButton
             )}
           </div>
-        </div>
-      )}
+        )}
+      </div>
 
       {dragging && <div className="drop-overlay">Drop to open the plan</div>}
+
+      <CalibrationLengthDialog />
 
       {addingFurniture && (
         <AddFurnitureForm

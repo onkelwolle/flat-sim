@@ -37,7 +37,8 @@ const formatScale = (pixelsPerMetre: number) =>
 
 /**
  * What the calibration needs from the user next: a prompt to set the scale,
- * where to tap or click, or the scale once it is set; plus the length dialog.
+ * where to tap or click, or the scale once it is set. The length itself is
+ * entered in `CalibrationLengthDialog`.
  */
 export function CalibrationStatus() {
   const scale = usePlanStore(selectScale)
@@ -64,17 +65,27 @@ export function CalibrationStatus() {
         : 'Enter the real length of the line.'
 
   return (
-    <>
-      <p className="status" role="status">
-        {message}
-      </p>
-      {draft?.length === 2 && (
-        <LengthDialog
-          onSubmit={(cm) => planStore.getState().finishCalibration(cm)}
-          onCancel={() => planStore.getState().cancelCalibration()}
-        />
-      )}
-    </>
+    <p className="status" role="status">
+      {message}
+    </p>
+  )
+}
+
+/**
+ * The dialog asking for the real length of the calibration line, open once
+ * both of its ends are picked. Rendered apart from `CalibrationStatus`, so it
+ * keeps what is typed while the status moves between the foot of the screen
+ * and the phone's bottom dock.
+ */
+export function CalibrationLengthDialog() {
+  const picked = usePlanStore((s) => s.calibrationDraft?.length === 2)
+  if (!picked) return null
+
+  return (
+    <LengthDialog
+      onSubmit={(cm) => planStore.getState().finishCalibration(cm)}
+      onCancel={() => planStore.getState().cancelCalibration()}
+    />
   )
 }
 

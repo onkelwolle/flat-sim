@@ -131,6 +131,18 @@ test('the ⋯ menu holds the other commands; Delete needs a selection', async ({
   await expect(itemPanel(page)).toBeVisible()
 })
 
+test('a selected item’s status says Delete item is in the ⋯ menu', async ({
+  page,
+}) => {
+  await pickFile(page, widePlan)
+  await calibrate(page)
+  await addSofa(page)
+
+  await expect(page.getByRole('status')).toHaveText(
+    'Sofa selected. Tap ⋯ › Delete item to remove it.',
+  )
+})
+
 test('a tap outside the ⋯ menu or Esc closes it, and does nothing else', async ({
   page,
 }) => {

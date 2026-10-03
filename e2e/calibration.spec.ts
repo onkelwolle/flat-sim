@@ -138,6 +138,42 @@ test('asks again for a length that is not a positive number', async ({
   await expect(status(page)).toHaveText('Scale: 1 m = 44.4 plan px')
 })
 
+test('the length dialog keeps what is typed across the phone breakpoint', async ({
+  page,
+}) => {
+  await page.getByRole('button', { name: 'Calibrate scale' }).click()
+  await page.mouse.click(320, 360)
+  await page.mouse.click(960, 360)
+  const dialog = lengthDialog(page)
+  await dialog.getByLabel('Length').fill('0')
+  await dialog.getByLabel('Unit').selectOption('cm')
+  await dialog.getByRole('button', { name: 'Set scale' }).click()
+
+  const expectDialogAsTyped = async () => {
+    await expect(dialog).toBeVisible()
+    await expect(dialog.getByLabel('Length')).toHaveValue('0')
+    await expect(dialog.getByLabel('Unit')).toHaveValue('cm')
+    await expect(dialog.getByRole('alert')).toHaveText(
+      'Enter a length greater than zero.',
+    )
+  }
+
+  // Narrowed to a phone, then widened again, each time once the tools have
+  // moved
+  await page.setViewportSize({ width: 390, height: 720 })
+  await expect(page.locator('.bottom-bar')).toBeAttached()
+  await expectDialogAsTyped()
+  await page.setViewportSize({ width: 1280, height: 720 })
+  await expect(page.locator('.toolbar')).toBeAttached()
+  await expectDialogAsTyped()
+
+  // And it still sets the scale: 200 plan px = 400 cm
+  await dialog.getByLabel('Length').fill('400')
+  await dialog.getByRole('button', { name: 'Set scale' }).click()
+  await expect(dialog).toBeHidden()
+  await expect(status(page)).toHaveText('Scale: 1 m = 50 plan px')
+})
+
 test('a new plan starts without a scale', async ({ page }) => {
   await calibrate(page, [320, 360], [960, 360], '4', 'm')
 

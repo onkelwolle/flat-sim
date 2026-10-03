@@ -1,4 +1,10 @@
-import { useId, useState, type CSSProperties, type MouseEvent } from 'react'
+import {
+  useId,
+  useState,
+  type CSSProperties,
+  type MouseEvent,
+  type Ref,
+} from 'react'
 import { useModalDialog } from '../dialogs'
 import { DialogBackdrop } from '../DialogBackdrop'
 import type { Size } from '../useViewportSize'
@@ -92,14 +98,17 @@ export function FurnitureStatus() {
  * Side panel for the selected item, editing its name, its size in cm and its
  * rotation in degrees. Shown only while an item is selected, below the screen
  * position `below` (the toolbar's bottom edge); as a `sheet`, it sits on the
- * phone's bottom bar instead.
+ * phone's bottom bar instead, and `expandedSheetRef` holds it while it is
+ * expanded.
  */
 export function FurniturePanel({
   below = 0,
   sheet = false,
+  expandedSheetRef,
 }: {
   below?: number
   sheet?: boolean
+  expandedSheetRef?: Ref<HTMLElement>
 }) {
   const item = usePlanStore((s) =>
     s.furniture.find((f) => f.id === s.selectedId),
@@ -107,7 +116,13 @@ export function FurniturePanel({
   if (!item) return null
   // A fresh form for each item, so edits never carry over to another
   return (
-    <FurniturePanelForm key={item.id} item={item} below={below} sheet={sheet} />
+    <FurniturePanelForm
+      key={item.id}
+      item={item}
+      below={below}
+      sheet={sheet}
+      expandedSheetRef={expandedSheetRef}
+    />
   )
 }
 
@@ -117,10 +132,12 @@ function FurniturePanelForm({
   item,
   below,
   sheet,
+  expandedSheetRef,
 }: {
   item: Furniture
   below: number
   sheet: boolean
+  expandedSheetRef?: Ref<HTMLElement>
 }) {
   const [error, setError] = useState<{ field: PanelField; message: string }>()
   // A sheet opens expanded, and collapses to its title to show the plan
@@ -159,6 +176,7 @@ function FurniturePanelForm({
 
   return (
     <aside
+      ref={sheet && expanded ? expandedSheetRef : undefined}
       className={sheet ? 'panel sheet' : 'panel'}
       aria-label="Selected item"
       style={{ '--below': `${below}px` } as CSSProperties}

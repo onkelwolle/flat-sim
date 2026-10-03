@@ -68,7 +68,18 @@ export function PlanControls({
   const dragging = useFileDrop(openFile, !pendingPlan && !confirmingNew)
 
   const choosePlan = () => inputRef.current?.click()
-  const fitToScreen = () => planStore.getState().fitToScreen(viewport)
+  // On a phone, into the part of the canvas the bottom bar, and the item
+  // sheet while it is expanded, leave clear
+  const bar = useRef<HTMLDivElement | null>(null)
+  const expandedSheet = useRef<HTMLElement>(null)
+  const fitToScreen = () => {
+    const top =
+      phone &&
+      (expandedSheet.current ?? bar.current)?.getBoundingClientRect().top
+    planStore
+      .getState()
+      .fitToScreen(top ? { width: viewport.width, height: top } : viewport)
+  }
 
   const openPlanButton = (
     <button
@@ -174,8 +185,14 @@ export function PlanControls({
           {errorMessage}
           {status}
           {/* Before the bar, so the open menu covers it */}
-          <FurniturePanel sheet />
-          <div ref={measureBar} className="bottom-bar">
+          <FurniturePanel sheet expandedSheetRef={expandedSheet} />
+          <div
+            ref={(element) => {
+              bar.current = element
+              measureBar(element)
+            }}
+            className="bottom-bar"
+          >
             {hasPlan ? (
               <>
                 <CalibrateButton compact onMouseDown={keepFocusOffToolbar} />

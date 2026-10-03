@@ -263,6 +263,42 @@ describe('calibrating the scale', () => {
     expect(store.getState().calibrationDraft).toBeNull()
   })
 
+  it('moving an end of the line keeps its real length and rescales', () => {
+    const store = calibrated()
+
+    // 400 px now stand for the same 4 m
+    store.getState().moveCalibrationEnd('end', { x: 500, y: 100 })
+
+    expect(store.getState().calibration).toEqual({
+      start: { x: 100, y: 100 },
+      end: { x: 500, y: 100 },
+      lengthCm: 400,
+      scale: { pixelsPerMetre: 100 },
+    })
+  })
+
+  it('undoes moving an end of the line as one step, back to the old scale', () => {
+    const store = calibrated()
+    store.getState().moveCalibrationEnd('end', { x: 500, y: 100 })
+    expect(store.getState().nextUndo?.label).toBe('adjust calibration')
+
+    store.getState().undo(viewport)
+
+    expect(store.getState().calibration?.end).toEqual({ x: 300, y: 100 })
+    expect(store.getState().calibration?.scale).toEqual({ pixelsPerMetre: 50 })
+  })
+
+  it('ignores moving an end of the line onto the other, or nearly', () => {
+    const store = calibrated()
+    const before = store.getState().calibration
+
+    store.getState().moveCalibrationEnd('start', { x: 300, y: 100 })
+    store.getState().moveCalibrationEnd('start', { x: 300.5, y: 100.5 })
+
+    expect(store.getState().calibration).toBe(before)
+    expect(store.getState().nextUndo?.label).toBe('calibrate scale')
+  })
+
   it('cannot calibrate while no plan is loaded', () => {
     const store = createPlanStore()
 

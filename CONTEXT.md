@@ -24,7 +24,7 @@ How many plan pixels make one real-world metre (`pixelsPerMetre`). All real-worl
 _Avoid_: zoom (that is the view's magnification)
 
 **Calibration**:
-A line drawn along a wall of known length, plus that real length, which together set the **Scale**. Re-calibrating replaces it; replacing the **Plan** drops it.
+A line drawn along a wall of known length, plus that real length, which together set the **Scale**. While no tool is active, either end of the line can be dragged (a press within a few pixels of it grabs it, a finger's width on touch screens): the real length stays, so the **Scale** follows when the end is dropped and **Items** redraw to it. Dropping an end on the other changes nothing; a second finger landing mid-drag snaps the end back. Re-calibrating replaces it; replacing the **Plan** drops it.
 
 **Calibrate tool**:
 The tool for drawing a **Calibration**: tap or click both ends of a wall on the plan, then enter its real length in cm or m. A click places its point at once; a finger or pen places it where it lifts, see **Loupe**. Points already placed stay when a second finger lands; the one being placed is not placed.
@@ -55,5 +55,5 @@ Taking back the last **Step**, or making an undone step again (Ctrl+Z / Cmd+Z; C
 _Avoid_: history entry, revert
 
 **Step**:
-One completed edit to the **Project**, undone and redone as a whole: adding, moving (one drag), turning (one turn of the rotate handle or one press of R; a drag or turn cut short by a second finger is none), renaming, resizing or deleting an item, one field edit in the side panel, confirming a **Calibration**, or replacing the **Plan**. A run of nudges to the same item is one step, ended by any other edit or a second without nudging. A new step drops any steps that were undone.
+One completed edit to the **Project**, undone and redone as a whole: adding, moving (one drag), turning (one turn of the rotate handle or one press of R; a drag or turn cut short by a second finger is none), renaming, resizing or deleting an item, one field edit in the side panel, confirming a **Calibration**, dragging one of its ends, or replacing the **Plan**. A run of nudges to the same item is one step, ended by any other edit or a second without nudging. A new step drops any steps that were undone.
 _Avoid_: action, change, operation

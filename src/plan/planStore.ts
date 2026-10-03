@@ -19,6 +19,9 @@ import { screenToPlan, zoomView, type Point } from './zoomView'
 export const MIN_ZOOM = 0.25
 export const MAX_ZOOM = 16
 
+/** The shortest a calibration line's ends may be dragged, in plan pixels. */
+export const MIN_CALIBRATION_PX = 1
+
 /**
  * The screen y at which controls covering the foot of the canvas begin, read
  * when the plan is fitted; undefined while nothing covers it.
@@ -45,6 +48,9 @@ export type Calibration = {
   lengthCm: number
   scale: Scale
 }
+
+/** Either end of the calibration line. */
+export type CalibrationEnd = 'start' | 'end'
 
 /** A straight line between two points on the plan, in plan pixels. */
 export type Measurement = { start: Point; end: Point }
@@ -156,6 +162,12 @@ export type PlanState = {
   finishCalibration: (lengthCm: number) => void
   /** Leave the calibrate tool, keeping any earlier calibration. */
   cancelCalibration: () => void
+  /**
+   * Move one end of the saved calibration line to a point, in plan pixels,
+   * keeping its real length: the scale follows. Ignored if the ends would
+   * come within `MIN_CALIBRATION_PX` of each other.
+   */
+  moveCalibrationEnd: (which: CalibrationEnd, point: Point) => void
   /** Activate the measuring tape; only possible once the scale is set. */
   startMeasuring: () => void
   /** Start a new measurement at a point, in plan pixels; its end follows. */
@@ -436,6 +448,28 @@ export function createPlanStore() {
         )
       },
       cancelCalibration: () => set({ calibrationDraft: null }),
+      moveCalibrationEnd: (which, point) => {
+        const { calibration } = get()
+        if (!calibration) return
+        const { start, end, lengthCm }: Calibration = {
+          ...calibration,
+          [which]: point,
+        }
+        // Too short a line cannot set a scale: a drop on the other end
+        // rarely lands on exactly the same point
+        if (distance(start, end) < MIN_CALIBRATION_PX) return
+        edit(
+          { label: 'adjust calibration', itemId: null },
+          {
+            calibration: {
+              start,
+              end,
+              lengthCm,
+              scale: scaleFromLine(start, end, lengthCm),
+            },
+          },
+        )
+      },
       startMeasuring: () => {
         if (!selectScale(get())) return
         set({

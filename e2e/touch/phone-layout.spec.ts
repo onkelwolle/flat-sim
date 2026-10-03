@@ -437,6 +437,44 @@ test('the length, add furniture and confirm dialogs fill the screen', async ({
   )
 })
 
+test('presets are picked, saved and deleted by finger in the full-screen form', async ({
+  page,
+}) => {
+  await pickFile(page, widePlan)
+  await calibrate(page)
+  await bottomBar(page).getByRole('button', { name: 'Add item' }).click()
+  const form = addDialog(page)
+  const preset = form.getByLabel('Preset')
+
+  await preset.selectOption('Desk (140 × 70 cm)')
+  await expect(form.getByLabel('Width (cm)')).toHaveValue('140')
+  await form.getByLabel('Name').fill('Standing desk')
+  await form.getByRole('button', { name: 'Save as preset' }).tap()
+  await expect(preset.locator('option:checked')).toHaveText(
+    'Standing desk (140 × 70 cm)',
+  )
+
+  // Every control fits the screen and a finger
+  for (const control of [
+    preset,
+    form.getByRole('button', { name: 'Delete preset' }),
+    form.getByRole('button', { name: 'Save as preset' }),
+  ]) {
+    const { x, width, height } = await box(control)
+    expect(height).toBeGreaterThanOrEqual(44)
+    expect(x).toBeGreaterThanOrEqual(0)
+    expect(x + width).toBeLessThanOrEqual(390)
+  }
+
+  await form.getByRole('button', { name: 'Delete preset' }).tap()
+  await expect(
+    preset.getByRole('option', { name: /^Standing desk/ }),
+  ).toHaveCount(0)
+  await form.getByRole('button', { name: 'Add', exact: true }).tap()
+  await expect(form).toBeHidden()
+  await expect(page.getByRole('status')).toHaveText(/^Standing desk selected/)
+})
+
 test('from 600 px wide dialogs stay a card in the middle', async ({ page }) => {
   await page.setViewportSize({ width: 600, height: 844 })
   await pickFile(page, widePlan)

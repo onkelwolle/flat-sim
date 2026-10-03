@@ -229,6 +229,25 @@ body {
   box-sizing: border-box;
 }
 
+/* The preset picker spans the form, with Delete preset beside it */
+.preset-picker {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  margin-bottom: 0.75rem;
+}
+
+.preset-picker label {
+  flex: 1;
+  min-width: 0;
+}
+
+.preset-picker .input {
+  width: 100%;
+  box-sizing: border-box;
+  background: #fff;
+}
+
 .panel {
   position: fixed;
   /* Clear of the toolbar, however many rows it wraps onto */

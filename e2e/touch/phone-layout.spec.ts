@@ -1,5 +1,11 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
-import { canvasDrawn, expectPlanColour, pickFile, widePlan } from '../plan.ts'
+import {
+  canvasDrawn,
+  expectPlanColour,
+  pickFile,
+  tallPlan,
+  widePlan,
+} from '../plan.ts'
 
 // A phone in portrait. The wide plan (400×200 px) is fitted at 0.975× with
 // its top at y = 324.5: screen (97.5, 422) is plan (100, 100) and screen
@@ -204,6 +210,52 @@ test('the status sits above the bar, wrapping rather than overflowing', async ({
     parseFloat(getComputedStyle(p).fontSize),
   )
   expect(height).toBeGreaterThan(2.5 * fontSize)
+})
+
+/** Fit the plan to the screen from the ⋯ menu. */
+const fitToScreen = async (page: Page) => {
+  await more(page).click()
+  await menu(page).getByRole('menuitem', { name: 'Fit to screen' }).click()
+  await expect(menu(page)).toBeHidden()
+}
+
+/**
+ * That the plan, solid green and centred, ends just above `bottom`: drawn
+ * there and at the top of the screen, but not below it.
+ */
+const expectPlanEndsAt = async (page: Page, bottom: number) => {
+  await expectPlanColour(page, 195, 2, 'green')
+  await expectPlanColour(page, 195, bottom - 2, 'green')
+  await expectPlanColour(page, 195, bottom + 2, 'none')
+}
+
+test('Fit to screen leaves the bar clear of the plan', async ({ page }) => {
+  // Tall enough that fitting it to the whole screen puts its foot under the
+  // bar
+  await pickFile(page, tallPlan)
+  await expectPlanColour(page, 195, 842, 'green')
+
+  await fitToScreen(page)
+
+  await expectPlanEndsAt(page, (await box(bottomBar(page))).y)
+})
+
+test('Fit to screen leaves the expanded sheet clear of the plan', async ({
+  page,
+}) => {
+  await pickFile(page, tallPlan)
+  await calibrate(page)
+  await addSofa(page)
+
+  await fitToScreen(page)
+
+  await expectPlanEndsAt(page, (await box(itemPanel(page))).y)
+
+  // Collapsed, the sheet is out of the way: only the bar counts
+  await itemPanel(page).getByRole('button', { name: 'Sofa' }).tap()
+  await fitToScreen(page)
+
+  await expectPlanEndsAt(page, (await box(bottomBar(page))).y)
 })
 
 test('before there is a plan, the bar offers to open one', async ({ page }) => {

@@ -12,9 +12,18 @@ import {
 import { cmToPx, pxToCm, scaleFromLine, type Scale } from './scale'
 import { screenToPlan, zoomView, type Point } from './zoomView'
 
-/** Zoom limits, as multiples of the scale that fits the plan to the viewport. */
+/**
+ * Zoom limits, as multiples of the scale that fits the plan to the visible
+ * part of the viewport.
+ */
 export const MIN_ZOOM = 0.25
 export const MAX_ZOOM = 16
+
+/**
+ * The screen y at which controls covering the foot of the canvas begin, read
+ * when the plan is fitted; undefined while nothing covers it.
+ */
+export type CanvasCover = () => number | undefined
 
 /** A decoded floor plan image; its pixels are the plan's coordinate space. */
 export type Plan = {
@@ -129,8 +138,16 @@ export type PlanState = {
   zoomAt: (at: Point, factor: number, viewport: Size) => void
   /** Move the view by a screen distance. */
   panBy: (delta: Point) => void
-  /** Fit the whole plan to the viewport again. */
+  /**
+   * Fit the whole plan to the viewport again. Every fit leaves clear what
+   * covers the foot of the canvas (see `setCanvasCover`).
+   */
   fitToScreen: (viewport: Size) => void
+  /**
+   * Set what covers the foot of the canvas (a phone's bottom bar, say), so
+   * fits leave it clear; null when nothing does.
+   */
+  setCanvasCover: (cover: CanvasCover | null) => void
   /** Activate the calibrate tool. */
   startCalibration: () => void
   /** Place the next end of the calibration line, in plan pixels. */
@@ -213,6 +230,19 @@ export function createPlanStore() {
   const history = createHistory<Project, Step>()
   // Plan images the project or its history has held and not yet released
   const images = new Set<ImageBitmap>()
+  let canvasCover: CanvasCover | null = null
+
+  /**
+   * The part of the viewport the plan can be seen in: above whatever covers
+   * the foot of the canvas, else all of it.
+   */
+  const visibleArea = (viewport: Size): Size => {
+    const top = canvasCover?.()
+    return top ? { width: viewport.width, height: top } : viewport
+  }
+  /** The view fitting `plan` into the visible area. */
+  const fit = (plan: Size, viewport: Size) =>
+    fitToViewport(plan, visibleArea(viewport))
 
   return createStore<PlanState>()((set, get) => {
     /** What undo and redo would do next, for the state. */
@@ -269,7 +299,7 @@ export function createPlanStore() {
         tape: project.calibration ? tape : null,
         view:
           project.plan && project.plan !== plan
-            ? fitToViewport(project.plan, viewport)
+            ? fit(project.plan, viewport)
             : view,
         ...nextSteps(),
       })
@@ -300,7 +330,7 @@ export function createPlanStore() {
           plan,
           calibration,
           furniture,
-          view: plan ? fitToViewport(plan, viewport) : old.view,
+          view: plan ? fit(plan, viewport) : old.view,
         })
         // Undo starts afresh with the restored project
         history.clear()
@@ -321,7 +351,7 @@ export function createPlanStore() {
       offerPlan: (plan, viewport) => {
         const { plan: current, pendingPlan } = get()
         if (!current) {
-          set({ plan, view: fitToViewport(plan, viewport) })
+          set({ plan, view: fit(plan, viewport) })
           return releaseImages()
         }
         pendingPlan?.image.close()
@@ -335,7 +365,7 @@ export function createPlanStore() {
           {
             plan,
             pendingPlan: null,
-            view: fitToViewport(plan, viewport),
+            view: fit(plan, viewport),
             // A new image has its own scale
             calibration: null,
             calibrationDraft: null,
@@ -353,11 +383,11 @@ export function createPlanStore() {
       zoomAt: (at, factor, viewport) => {
         const { plan, view } = get()
         if (!plan) return
-        const fit = fitToViewport(plan, viewport).scale
+        const fitted = fit(plan, viewport).scale
         set({
           view: zoomView(view, at, factor, {
-            min: fit * MIN_ZOOM,
-            max: fit * MAX_ZOOM,
+            min: fitted * MIN_ZOOM,
+            max: fitted * MAX_ZOOM,
           }),
         })
       },
@@ -366,9 +396,12 @@ export function createPlanStore() {
         if (!plan) return
         set({ view: { ...view, x: view.x + delta.x, y: view.y + delta.y } })
       },
+      setCanvasCover: (cover) => {
+        canvasCover = cover
+      },
       fitToScreen: (viewport) => {
         const { plan } = get()
-        if (plan) set({ view: fitToViewport(plan, viewport) })
+        if (plan) set({ view: fit(plan, viewport) })
       },
       startCalibration: () => {
         // One tool at a time

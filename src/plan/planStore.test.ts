@@ -1079,3 +1079,89 @@ describe('undo and redo', () => {
     expect(closed(old)).toBe(true)
   })
 })
+
+describe('controls covering the foot of the canvas', () => {
+  // The bottom 200 px of the 1000×800 viewport are covered: the plan fits
+  // the 1000×600 above, at 0.5× with its top at y = 50
+  const covered = () => {
+    const store = createPlanStore()
+    store.getState().setCanvasCover(() => 600)
+    return store
+  }
+
+  it('fits an offered plan above them', () => {
+    const store = covered()
+
+    store.getState().offerPlan(plan('flat.png'), viewport)
+
+    expect(store.getState().view).toEqual({ scale: 0.5, x: 0, y: 50 })
+  })
+
+  it('fits a replacing plan above them', () => {
+    const store = covered()
+    store.getState().offerPlan(plan('old.png', 100, 100), viewport)
+    store.getState().offerPlan(plan('new.png'), viewport)
+
+    store.getState().confirmReplace(viewport)
+
+    expect(store.getState().view).toEqual({ scale: 0.5, x: 0, y: 50 })
+  })
+
+  it('fits a restored plan above them', () => {
+    const store = covered()
+
+    store
+      .getState()
+      .restoreProject(
+        { plan: plan('saved.png'), calibration: null, furniture: [] },
+        viewport,
+      )
+
+    expect(store.getState().view).toEqual({ scale: 0.5, x: 0, y: 50 })
+  })
+
+  it('fits the plan undo or redo brings back above them', () => {
+    const store = covered()
+    store.getState().offerPlan(plan('old.png'), viewport)
+    store.getState().offerPlan(plan('new.png', 100, 100), viewport)
+    store.getState().confirmReplace(viewport)
+
+    store.getState().undo(viewport)
+    expect(store.getState().view).toEqual({ scale: 0.5, x: 0, y: 50 })
+
+    store.getState().redo(viewport)
+    // 100×100 fits the 1000×600 at 6×, centred
+    expect(store.getState().view).toEqual({ scale: 6, x: 200, y: 0 })
+  })
+
+  it('fits the plan to the screen above them', () => {
+    const store = covered()
+    store.getState().offerPlan(plan('flat.png'), viewport)
+    store.getState().panBy({ x: 30, y: -20 })
+
+    store.getState().fitToScreen(viewport)
+
+    expect(store.getState().view).toEqual({ scale: 0.5, x: 0, y: 50 })
+  })
+
+  it('limits zoom relative to the scale fitting the plan above them', () => {
+    const store = covered()
+    // 2000×2000 fits the 1000×600 at 0.3× (the whole viewport at 0.4×)
+    store.getState().offerPlan(plan('square.png', 2000, 2000), viewport)
+
+    store.getState().zoomAt({ x: 0, y: 0 }, 1 / 100000, viewport)
+    expect(store.getState().view.scale).toBeCloseTo(0.3 * MIN_ZOOM)
+
+    store.getState().zoomAt({ x: 0, y: 0 }, 100000, viewport)
+    expect(store.getState().view.scale).toBeCloseTo(0.3 * MAX_ZOOM)
+  })
+
+  it('fits to the whole viewport again once nothing covers it', () => {
+    const store = covered()
+    store.getState().setCanvasCover(() => undefined)
+
+    store.getState().offerPlan(plan('flat.png'), viewport)
+
+    expect(store.getState().view).toEqual({ scale: 0.5, x: 0, y: 150 })
+  })
+})

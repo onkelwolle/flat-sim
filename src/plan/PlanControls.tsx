@@ -68,18 +68,27 @@ export function PlanControls({
   const dragging = useFileDrop(openFile, !pendingPlan && !confirmingNew)
 
   const choosePlan = () => inputRef.current?.click()
-  // On a phone, into the part of the canvas the bottom bar, and the item
-  // sheet while it is expanded, leave clear
+  // On a phone, the bottom bar, and the item sheet while it is expanded,
+  // cover the foot of the canvas: fits leave them clear
   const bar = useRef<HTMLDivElement | null>(null)
   const expandedSheet = useRef<HTMLElement>(null)
-  const fitToScreen = () => {
-    const top =
-      phone &&
-      (expandedSheet.current ?? bar.current)?.getBoundingClientRect().top
+  useLayoutEffect(() => {
+    if (!phone) return
     planStore
       .getState()
-      .fitToScreen(top ? { width: viewport.width, height: top } : viewport)
-  }
+      .setCanvasCover(
+        () =>
+          (expandedSheet.current ?? bar.current)?.getBoundingClientRect().top,
+      )
+    return () => planStore.getState().setCanvasCover(null)
+  }, [phone])
+  const fitToScreen = () => planStore.getState().fitToScreen(viewport)
+  // A restored plan was fitted before the controls showed: fit it again,
+  // clear of them
+  const [initialViewport] = useState(viewport)
+  useLayoutEffect(() => {
+    planStore.getState().fitToScreen(initialViewport)
+  }, [initialViewport])
 
   const openPlanButton = (
     <button

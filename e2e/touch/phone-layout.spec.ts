@@ -6,10 +6,11 @@ import {
   tallPlan,
   widePlan,
 } from '../plan.ts'
+import { fingers } from './fingers.ts'
 
-// A phone in portrait. The wide plan (400×200 px) is fitted at 0.975× with
-// its top at y = 324.5: screen (97.5, 422) is plan (100, 100) and screen
-// (292.5, 422) is plan (300, 100)
+// A phone in portrait. The wide plan (400×200 px) is fitted at 0.975× into
+// the 784 px above the 60 px bottom bar, its top at y = 294.5: screen
+// (97.5, 392) is plan (100, 100) and screen (292.5, 392) is plan (300, 100)
 test.use({ viewport: { width: 390, height: 844 } })
 
 const bottomBar = (page: Page) => page.locator('.bottom-bar')
@@ -23,8 +24,8 @@ const box = async (locator: Locator) => (await locator.boundingBox())!
 /** Calibrate at 50 plan px per metre: plan (100, 100) to (300, 100) is 4 m. */
 const calibrate = async (page: Page) => {
   await bottomBar(page).getByRole('button', { name: 'Calibrate' }).click()
-  await page.touchscreen.tap(97.5, 422)
-  await page.touchscreen.tap(292.5, 422)
+  await page.touchscreen.tap(97.5, 392)
+  await page.touchscreen.tap(292.5, 392)
   await lengthDialog(page).getByLabel('Length').fill('4')
   await lengthDialog(page).getByRole('button', { name: 'Set scale' }).click()
   await expect(lengthDialog(page)).toBeHidden()
@@ -212,6 +213,32 @@ test('the status sits above the bar, wrapping rather than overflowing', async ({
   expect(height).toBeGreaterThan(2.5 * fontSize)
 })
 
+/** Whether a project is saved in the browser. */
+const projectSaved = (page: Page) =>
+  page.evaluate(
+    () =>
+      new Promise<boolean>((resolve, reject) => {
+        const open = indexedDB.open('flat-sim')
+        open.onerror = () => reject(open.error)
+        open.onsuccess = () => {
+          const db = open.result
+          if (!db.objectStoreNames.contains('projects')) {
+            db.close()
+            return resolve(false)
+          }
+          const get = db
+            .transaction('projects')
+            .objectStore('projects')
+            .getKey('current')
+          get.onsuccess = () => {
+            db.close()
+            resolve(get.result !== undefined)
+          }
+          get.onerror = () => reject(get.error)
+        }
+      }),
+  )
+
 /** Fit the plan to the screen from the ⋯ menu. */
 const fitToScreen = async (page: Page) => {
   await more(page).click()
@@ -229,15 +256,57 @@ const expectPlanEndsAt = async (page: Page, bottom: number) => {
   await expectPlanColour(page, 195, bottom + 2, 'none')
 }
 
-test('Fit to screen leaves the bar clear of the plan', async ({ page }) => {
-  // Tall enough that fitting it to the whole screen puts its foot under the
-  // bar
-  await pickFile(page, tallPlan)
-  await expectPlanColour(page, 195, 842, 'green')
+const barTop = async (page: Page) => (await box(bottomBar(page))).y
 
+test('an opened plan fits above the bar, and so does Fit to screen', async ({
+  page,
+}) => {
+  // Tall enough that fitting it to the whole screen would put its foot under
+  // the bar
+  await pickFile(page, tallPlan)
+
+  await expectPlanEndsAt(page, await barTop(page))
+
+  // Dragged away, Fit to screen brings it back
+  const touch = await fingers(page)
+  const finger = await touch.down([195, 300])
+  await touch.move({ [finger]: [195, 100] })
+  await touch.up(finger)
+  await expectPlanColour(page, 195, (await barTop(page)) - 2, 'none')
   await fitToScreen(page)
 
-  await expectPlanEndsAt(page, (await box(bottomBar(page))).y)
+  await expectPlanEndsAt(page, await barTop(page))
+})
+
+test('a replacing plan, and one undo or redo brings back, fit above the bar', async ({
+  page,
+}) => {
+  await pickFile(page, widePlan)
+  await pickFile(page, tallPlan)
+  await page
+    .getByRole('dialog', { name: 'Replace the current plan?' })
+    .getByRole('button', { name: 'Replace' })
+    .click()
+
+  await expectPlanEndsAt(page, await barTop(page))
+
+  await bottomBar(page).getByRole('button', { name: 'Undo' }).click()
+  await expectPlanColour(page, 195, 2, 'none')
+  await more(page).click()
+  await menu(page).getByRole('menuitem', { name: 'Redo' }).click()
+
+  await expectPlanEndsAt(page, await barTop(page))
+})
+
+test('a restored plan fits above the bar', async ({ page }) => {
+  await pickFile(page, tallPlan)
+  await expectPlanEndsAt(page, await barTop(page))
+  // Saved once changes pause
+  await expect.poll(() => projectSaved(page)).toBe(true)
+
+  await page.reload()
+
+  await expectPlanEndsAt(page, await barTop(page))
 })
 
 test('Fit to screen leaves the expanded sheet clear of the plan', async ({
@@ -255,7 +324,7 @@ test('Fit to screen leaves the expanded sheet clear of the plan', async ({
   await itemPanel(page).getByRole('button', { name: 'Sofa' }).tap()
   await fitToScreen(page)
 
-  await expectPlanEndsAt(page, (await box(bottomBar(page))).y)
+  await expectPlanEndsAt(page, await barTop(page))
 })
 
 test('before there is a plan, the bar offers to open one', async ({ page }) => {
@@ -295,8 +364,8 @@ test('the length, add furniture and confirm dialogs fill the screen', async ({
 }) => {
   await pickFile(page, widePlan)
   await bottomBar(page).getByRole('button', { name: 'Calibrate' }).click()
-  await page.touchscreen.tap(97.5, 422)
-  await page.touchscreen.tap(292.5, 422)
+  await page.touchscreen.tap(97.5, 392)
+  await page.touchscreen.tap(292.5, 392)
   await expectFullScreen(lengthDialog(page), ['Cancel', 'Set scale'])
   await lengthDialog(page).getByLabel('Length').fill('4')
   await lengthDialog(page).getByRole('button', { name: 'Set scale' }).click()
@@ -457,7 +526,7 @@ test.describe('with the on-screen keyboard', () => {
     // The canvas neither shrinks nor moves: the view stays where it was
     const canvas = await box(page.locator('canvas').first())
     expect(canvas).toEqual({ x: 0, y: 0, width: 390, height: 844 })
-    await expectPlanColour(page, 97.5, 422, 'red')
+    await expectPlanColour(page, 97.5, 392, 'red')
 
     // Closing it puts the sheet back on the bar
     await showKeyboard(page, 0)
@@ -475,8 +544,8 @@ test.describe('with the on-screen keyboard', () => {
   }) => {
     await pickFile(page, widePlan)
     await bottomBar(page).getByRole('button', { name: 'Calibrate' }).click()
-    await page.touchscreen.tap(97.5, 422)
-    await page.touchscreen.tap(292.5, 422)
+    await page.touchscreen.tap(97.5, 392)
+    await page.touchscreen.tap(292.5, 392)
     const length = lengthDialog(page).getByLabel('Length')
     await length.tap()
 

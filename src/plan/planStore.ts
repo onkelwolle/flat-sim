@@ -168,7 +168,10 @@ export type PlanState = {
   dropMeasurementInProgress: () => void
   /** Leave the measuring tape; its measurement disappears. */
   stopMeasuring: () => void
-  /** Add an item centred in the view; only possible once the scale is set. */
+  /**
+   * Add an item centred in the visible part of the view (above what covers
+   * the foot of the canvas); only possible once the scale is set.
+   */
   addFurniture: (spec: FurnitureSpec, viewport: Size) => void
   /** Select an item, replacing any earlier selection. */
   selectFurniture: (id: string) => void
@@ -475,7 +478,8 @@ export function createPlanStore() {
       addFurniture: (spec, viewport) => {
         const { furniture, view } = get()
         if (!selectScale(get())) return
-        const centre = { x: viewport.width / 2, y: viewport.height / 2 }
+        const visible = visibleArea(viewport)
+        const centre = { x: visible.width / 2, y: visible.height / 2 }
         const item: Furniture = {
           ...spec,
           id: `item-${++lastId}`,

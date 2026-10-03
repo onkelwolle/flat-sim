@@ -4,6 +4,7 @@ import {
   labelFlipped,
   nudgeOffset,
   parseRotation,
+  readableRotation,
   snapRotation,
   snapToAngle,
   snapToAngleNear,
@@ -175,5 +176,22 @@ describe('labelFlipped', () => {
     expect(labelFlipped(135)).toBe(true)
     expect(labelFlipped(270)).toBe(true)
     expect(labelFlipped(300)).toBe(false)
+  })
+})
+
+describe('readableRotation', () => {
+  it('keeps text along a line that already reads from the bottom or the right', () => {
+    expect(readableRotation(0)).toBe(0)
+    expect(readableRotation(45)).toBe(45)
+    expect(readableRotation(90)).toBe(90)
+    expect(readableRotation(300)).toBe(300)
+  })
+
+  it('turns text along a line half a turn when it would read upside down', () => {
+    expect(readableRotation(180)).toBe(0)
+    expect(readableRotation(135)).toBe(315)
+    expect(readableRotation(270)).toBe(90)
+    expect(readableRotation(-90)).toBe(90)
+    expect(readableRotation(450)).toBe(90)
   })
 })

@@ -6,6 +6,7 @@ import { CalibrateButton, CalibrationStatus } from './CalibrationControls'
 import { ConfirmDialog } from './ConfirmDialog'
 import {
   AddFurnitureButton,
+  AddFurnitureForm,
   DeleteFurnitureButton,
   FurniturePanel,
   FurnitureStatus,
@@ -44,6 +45,9 @@ export function PlanControls({
   const nextRedo = usePlanStore((s) => s.nextRedo?.label)
   const [error, setError] = useState<string | null>(null)
   const [confirmingNew, setConfirmingNew] = useState(false)
+  // Here, not in its button, so the form and what is typed in it survive the
+  // button moving between toolbar and bottom bar at the phone width
+  const [addingFurniture, setAddingFurniture] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
   const [toolbarBottom, measureToolbar] = useBoxMeasure(bottomEdge)
   const [barHeight, measureBar] = useBoxMeasure(height)
@@ -153,8 +157,8 @@ export function PlanControls({
           {hasPlan && <MeasureButton onMouseDown={keepFocusOffToolbar} />}
           {hasPlan && (
             <AddFurnitureButton
-              viewport={viewport}
               onMouseDown={keepFocusOffToolbar}
+              onClick={() => setAddingFurniture(true)}
             />
           )}
           <DeleteFurnitureButton onMouseDown={keepFocusOffToolbar} />
@@ -207,9 +211,9 @@ export function PlanControls({
                 <CalibrateButton compact onMouseDown={keepFocusOffToolbar} />
                 <MeasureButton onMouseDown={keepFocusOffToolbar} />
                 <AddFurnitureButton
-                  viewport={viewport}
                   compact
                   onMouseDown={keepFocusOffToolbar}
+                  onClick={() => setAddingFurniture(true)}
                 />
                 <UndoButton
                   viewport={viewport}
@@ -249,6 +253,13 @@ export function PlanControls({
       )}
 
       {dragging && <div className="drop-overlay">Drop to open the plan</div>}
+
+      {addingFurniture && (
+        <AddFurnitureForm
+          viewport={viewport}
+          onClose={() => setAddingFurniture(false)}
+        />
+      )}
 
       {pendingPlan && (
         <ConfirmDialog

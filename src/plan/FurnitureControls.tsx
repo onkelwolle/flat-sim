@@ -24,44 +24,56 @@ import { parseRotation } from './geometry'
 import { parseLength } from './scale'
 
 /**
- * Toolbar button that opens the form for adding an item of furniture.
- * Disabled until the scale is set; `compact` shortens its label for the
- * phone's bottom bar.
+ * Toolbar button that opens the form for adding an item of furniture (see
+ * `AddFurnitureForm`). Disabled until the scale is set; `compact` shortens its
+ * label for the phone's bottom bar.
  */
 export function AddFurnitureButton({
-  viewport,
   compact = false,
   onMouseDown,
+  onClick,
 }: {
-  viewport: Size
   compact?: boolean
   onMouseDown: (e: MouseEvent) => void
+  onClick: () => void
 }) {
   const calibrated = usePlanStore((s) => selectScale(s) !== null)
-  const [open, setOpen] = useState(false)
 
   return (
-    <>
-      <button
-        type="button"
-        className="button"
-        disabled={!calibrated}
-        title={calibrated ? undefined : 'Calibrate the scale first'}
-        onMouseDown={onMouseDown}
-        onClick={() => setOpen(true)}
-      >
-        {compact ? 'Add item' : 'Add furniture'}
-      </button>
-      {open && (
-        <AddFurnitureDialog
-          onSubmit={(spec) => {
-            planStore.getState().addFurniture(spec, viewport)
-            setOpen(false)
-          }}
-          onCancel={() => setOpen(false)}
-        />
-      )}
-    </>
+    <button
+      type="button"
+      className="button"
+      disabled={!calibrated}
+      title={calibrated ? undefined : 'Calibrate the scale first'}
+      onMouseDown={onMouseDown}
+      onClick={onClick}
+    >
+      {compact ? 'Add item' : 'Add furniture'}
+    </button>
+  )
+}
+
+/**
+ * The Add furniture form, adding the item in the middle of `viewport`, then
+ * closing. Rendered apart from the button that opens it, so it stays open,
+ * with whatever has been typed, while the button moves between the toolbar
+ * and the phone's bottom bar.
+ */
+export function AddFurnitureForm({
+  viewport,
+  onClose,
+}: {
+  viewport: Size
+  onClose: () => void
+}) {
+  return (
+    <AddFurnitureDialog
+      onSubmit={(spec) => {
+        planStore.getState().addFurniture(spec, viewport)
+        onClose()
+      }}
+      onCancel={onClose}
+    />
   )
 }
 

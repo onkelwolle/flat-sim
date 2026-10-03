@@ -1,6 +1,13 @@
-import { expect, test, type Locator, type Page } from '@playwright/test'
+import { expect, test as base, type Locator, type Page } from '@playwright/test'
 import { canvasDrawn, expectFurnitureAt, pickFile, widePlan } from '../plan.ts'
 import { fingers } from './fingers.ts'
+
+const test = base.extend<{ mouseToo: boolean }>({
+  // Whether a mouse or trackpad sits beside the touch screen, as on a
+  // touchscreen laptop. Chromium's touch emulation can't add one, so this
+  // makes the app's fine-pointer query match
+  mouseToo: [false, { option: true }],
+})
 
 // A tablet in portrait. The wide plan (400×200 px) is fitted at 1.92× with
 // its top at y = 320: screen (192, 512) is plan (100, 100), screen (576, 512)
@@ -52,7 +59,14 @@ const addSofa = async (page: Page) => {
   await canvasDrawn(page)
 }
 
-test.beforeEach(async ({ page }) => {
+test.beforeEach(async ({ page, mouseToo }) => {
+  if (mouseToo) {
+    await page.addInitScript(() => {
+      const matchMedia = window.matchMedia.bind(window)
+      window.matchMedia = (query) =>
+        matchMedia(query === '(any-pointer: fine)' ? 'all' : query)
+    })
+  }
   await page.goto('./')
   await pickFile(page, widePlan)
   await calibrate(page)
@@ -72,6 +86,20 @@ test('a selected item points to the Delete item button, not the Delete key', asy
   await expect(page.getByRole('status')).toHaveText(
     'Sofa selected. Tap Delete item to remove it.',
   )
+})
+
+test.describe('with a mouse too', () => {
+  test.use({ mouseToo: true })
+
+  test('a selected item points to both the Delete key and the Delete item button', async ({
+    page,
+  }) => {
+    await addSofa(page)
+
+    await expect(page.getByRole('status')).toHaveText(
+      'Sofa selected. Press Delete or tap Delete item to remove it.',
+    )
+  })
 })
 
 test('dialog controls are big enough for a finger', async ({ page }) => {

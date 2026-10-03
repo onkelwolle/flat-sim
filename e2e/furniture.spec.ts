@@ -207,6 +207,9 @@ test.describe('once calibrated', () => {
   test('the Delete key deletes the selected item', async ({ page }) => {
     await addFurniture(page, 'Sofa', '200', '100')
 
+    await expect(status(page)).toHaveText(
+      'Sofa selected. Press Delete to remove it.',
+    )
     await page.keyboard.press('Delete')
 
     await expectFurnitureAt(page, 485, 285, false)

@@ -64,6 +64,16 @@ test('toolbar buttons are big enough for a finger', async ({ page }) => {
   await expectTouchSized(toolbarButtons(page))
 })
 
+test('a selected item points to the Delete item button, not the Delete key', async ({
+  page,
+}) => {
+  await addSofa(page)
+
+  await expect(page.getByRole('status')).toHaveText(
+    'Sofa selected. Tap Delete item to remove it.',
+  )
+})
+
 test('dialog controls are big enough for a finger', async ({ page }) => {
   await page.getByRole('button', { name: 'Recalibrate' }).click()
   await page.touchscreen.tap(192, 512)

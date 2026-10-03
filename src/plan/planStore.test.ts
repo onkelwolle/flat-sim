@@ -1164,4 +1164,24 @@ describe('controls covering the foot of the canvas', () => {
 
     expect(store.getState().view).toEqual({ scale: 0.5, x: 0, y: 150 })
   })
+
+  it('adds an item centred in the part of the view above them', () => {
+    const store = covered()
+    store.getState().offerPlan(plan('flat.png'), viewport)
+    store.getState().startCalibration()
+    store.getState().placeCalibrationPoint({ x: 100, y: 100 })
+    store.getState().placeCalibrationPoint({ x: 300, y: 100 })
+    store.getState().finishCalibration(400)
+
+    store
+      .getState()
+      .addFurniture({ name: 'Sofa', widthCm: 200, depthCm: 90 }, viewport)
+
+    // The centre of the 1000×600 above, (500, 300), is plan (1000, 500);
+    // the whole viewport's centre would be plan (1000, 700)
+    expect(store.getState().furniture[0]!.position).toEqual({
+      x: 1000,
+      y: 500,
+    })
+  })
 })

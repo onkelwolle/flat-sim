@@ -1,6 +1,7 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
 import {
   canvasDrawn,
+  expectFurnitureAt,
   expectPlanColour,
   pickFile,
   tallPlan,
@@ -68,7 +69,7 @@ const menu = (page: Page) => page.getByRole('menu', { name: 'More' })
 const itemPanel = (page: Page) =>
   page.getByRole('complementary', { name: 'Selected item' })
 
-/** A 2 m × 1 m sofa in the view's centre, selected: screen (195, 422). */
+/** A 2 m × 1 m sofa mid-view above the bar, selected: screen (195, 392). */
 const addSofa = async (page: Page) => {
   await bottomBar(page).getByRole('button', { name: 'Add item' }).click()
   await addDialog(page).getByLabel('Name').fill('Sofa')
@@ -339,6 +340,25 @@ test('Fit to screen leaves the expanded sheet clear of the plan', async ({
   await expectPlanEndsAt(page, await barTop(page))
 })
 
+test('a new item lands in the middle of the screen above the bar', async ({
+  page,
+}) => {
+  await pickFile(page, widePlan)
+  await calibrate(page)
+
+  await addSofa(page)
+
+  // Deselected, so only the item itself is drawn
+  await page.touchscreen.tap(40, 250)
+  await expect(itemPanel(page)).toBeHidden()
+  // 2 m × 1 m at 50 px per metre and 0.975×: 48.75 px deep, centred on
+  // y = 392, the middle of the 784 px above the bar (not 422, the screen's)
+  await expectFurnitureAt(page, 195, 370)
+  await expectFurnitureAt(page, 195, 414)
+  await expectFurnitureAt(page, 195, 364, false)
+  await expectFurnitureAt(page, 195, 420, false)
+})
+
 test('before there is a plan, the bar offers to open one', async ({ page }) => {
   await expect(bottomBar(page).getByRole('button')).toHaveText(['Open plan…'])
 })
@@ -473,7 +493,7 @@ test('the sheet collapses to its title row and expands again', async ({
   await title.tap()
   await page.touchscreen.tap(40, 250)
   await expect(itemPanel(page)).toBeHidden()
-  await page.touchscreen.tap(195, 422)
+  await page.touchscreen.tap(195, 392)
   await expect(title).toHaveAttribute('aria-expanded', 'true')
 })
 

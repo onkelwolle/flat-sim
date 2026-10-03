@@ -1220,4 +1220,30 @@ describe('controls covering the foot of the canvas', () => {
       y: 500,
     })
   })
+
+  it('adds an item centred in the part of the view left once it is selected', () => {
+    const store = createPlanStore()
+    // Selecting an item covers more: a sheet over the bottom 400 px
+    store
+      .getState()
+      .setCanvasCover(() => (store.getState().selectedId ? 400 : 600))
+    store.getState().offerPlan(plan('flat.png'), viewport)
+    store.getState().startCalibration()
+    store.getState().placeCalibrationPoint({ x: 100, y: 100 })
+    store.getState().placeCalibrationPoint({ x: 300, y: 100 })
+    store.getState().finishCalibration(400)
+
+    store
+      .getState()
+      .addFurniture({ name: 'Sofa', widthCm: 200, depthCm: 90 }, viewport)
+
+    // The centre of the 1000×400 left, (500, 200), is plan (1000, 300)
+    expect(store.getState().furniture[0]!.position).toEqual({
+      x: 1000,
+      y: 300,
+    })
+    // Still one step: undo takes the item away
+    store.getState().undo(viewport)
+    expect(store.getState().furniture).toEqual([])
+  })
 })

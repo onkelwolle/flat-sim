@@ -22,11 +22,14 @@ const addDialog = (page: Page) =>
 
 const box = async (locator: Locator) => (await locator.boundingBox())!
 
-/** Calibrate at 50 plan px per metre: plan (100, 100) to (300, 100) is 4 m. */
-const calibrate = async (page: Page) => {
+/**
+ * Calibrate at 50 plan px per metre: plan (100, 100) to (300, 100), at
+ * screen y = `y`, is 4 m.
+ */
+const calibrate = async (page: Page, y = 392) => {
   await bottomBar(page).getByRole('button', { name: 'Calibrate' }).click()
-  await page.touchscreen.tap(97.5, 392)
-  await page.touchscreen.tap(292.5, 392)
+  await page.touchscreen.tap(97.5, y)
+  await page.touchscreen.tap(292.5, y)
   await lengthDialog(page).getByLabel('Length').fill('4')
   await lengthDialog(page).getByRole('button', { name: 'Set scale' }).click()
   await expect(lengthDialog(page)).toBeHidden()
@@ -69,7 +72,10 @@ const menu = (page: Page) => page.getByRole('menu', { name: 'More' })
 const itemPanel = (page: Page) =>
   page.getByRole('complementary', { name: 'Selected item' })
 
-/** A 2 m × 1 m sofa mid-view above the bar, selected: screen (195, 392). */
+/**
+ * A 2 m × 1 m sofa, selected, mid-view above its expanded sheet (top at
+ * y ≈ 500): screen (195, 250).
+ */
 const addSofa = async (page: Page) => {
   await bottomBar(page).getByRole('button', { name: 'Add item' }).click()
   await addDialog(page).getByLabel('Name').fill('Sofa')
@@ -340,23 +346,34 @@ test('Fit to screen leaves the expanded sheet clear of the plan', async ({
   await expectPlanEndsAt(page, await barTop(page))
 })
 
-test('a new item lands in the middle of the screen above the bar', async ({
-  page,
-}) => {
-  await pickFile(page, widePlan)
-  await calibrate(page)
+test.describe('on a short phone', () => {
+  // The wide plan is fitted at 0.975× into the 540 px above the bar, its top
+  // at y = 172.5: plan (100, 100) and (300, 100) are at screen y = 270
+  test.use({ viewport: { width: 390, height: 600 } })
 
-  await addSofa(page)
+  test('a new item lands in the middle of the screen above the expanded sheet', async ({
+    page,
+  }) => {
+    await pickFile(page, widePlan)
+    await calibrate(page, 270)
 
-  // Deselected, so only the item itself is drawn
-  await page.touchscreen.tap(40, 250)
-  await expect(itemPanel(page)).toBeHidden()
-  // 2 m × 1 m at 50 px per metre and 0.975×: 48.75 px deep, centred on
-  // y = 392, the middle of the 784 px above the bar (not 422, the screen's)
-  await expectFurnitureAt(page, 195, 370)
-  await expectFurnitureAt(page, 195, 414)
-  await expectFurnitureAt(page, 195, 364, false)
-  await expectFurnitureAt(page, 195, 420, false)
+    await addSofa(page)
+
+    await expect(
+      itemPanel(page).getByRole('button', { name: 'Sofa' }),
+    ).toHaveAttribute('aria-expanded', 'true')
+    const sheetTop = (await box(itemPanel(page))).y
+    // Deselected, so only the item itself is drawn
+    await page.touchscreen.tap(40, 30)
+    await expect(itemPanel(page)).toBeHidden()
+    // 2 m × 1 m at 50 px per metre and 0.975×: 48.75 px deep, centred in
+    // the part of the screen above the sheet (not above the bar, y = 270)
+    const middle = sheetTop / 2
+    await expectFurnitureAt(page, 195, middle - 22)
+    await expectFurnitureAt(page, 195, middle + 22)
+    await expectFurnitureAt(page, 195, middle - 28, false)
+    await expectFurnitureAt(page, 195, middle + 28, false)
+  })
 })
 
 test('before there is a plan, the bar offers to open one', async ({ page }) => {
@@ -493,7 +510,7 @@ test('the sheet collapses to its title row and expands again', async ({
   await title.tap()
   await page.touchscreen.tap(40, 250)
   await expect(itemPanel(page)).toBeHidden()
-  await page.touchscreen.tap(195, 392)
+  await page.touchscreen.tap(195, 250)
   await expect(title).toHaveAttribute('aria-expanded', 'true')
 })
 

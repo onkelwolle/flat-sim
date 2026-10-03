@@ -24,7 +24,9 @@ export const MIN_CALIBRATION_PX = 1
 
 /**
  * The screen y at which controls covering the foot of the canvas begin, read
- * when the plan is fitted; undefined while nothing covers it.
+ * when the plan is fitted or an item added (once it is selected, so it
+ * should reflect the store's current state); undefined while nothing covers
+ * it.
  */
 export type CanvasCover = () => number | undefined
 
@@ -181,8 +183,9 @@ export type PlanState = {
   /** Leave the measuring tape; its measurement disappears. */
   stopMeasuring: () => void
   /**
-   * Add an item centred in the visible part of the view (above what covers
-   * the foot of the canvas); only possible once the scale is set.
+   * Add an item, selected, centred in the visible part of the view (above
+   * what covers the foot of the canvas once it is selected); only possible
+   * once the scale is set.
    */
   addFurniture: (spec: FurnitureSpec, viewport: Size) => void
   /** Select an item, replacing any earlier selection. */
@@ -512,12 +515,17 @@ export function createPlanStore() {
       addFurniture: (spec, viewport) => {
         const { furniture, view } = get()
         if (!selectScale(get())) return
-        const visible = visibleArea(viewport)
-        const centre = { x: visible.width / 2, y: visible.height / 2 }
+        const centre = () => {
+          const visible = visibleArea(viewport)
+          return screenToPlan(view, {
+            x: visible.width / 2,
+            y: visible.height / 2,
+          })
+        }
         const item: Furniture = {
           ...spec,
           id: `item-${++lastId}`,
-          position: screenToPlan(view, centre),
+          position: centre(),
           rotationDeg: 0,
         }
         edit(
@@ -528,6 +536,13 @@ export function createPlanStore() {
             ...selectItem(item.id),
           },
         )
+        // Selected, it may be covered by more (a phone's item sheet): centre
+        // it in what is left, as part of the same step
+        const position = centre()
+        if (position.x !== item.position.x || position.y !== item.position.y)
+          set({
+            furniture: updateItem(get().furniture, item.id, { position }),
+          })
       },
       selectFurniture: (id) => {
         if (get().furniture.some((f) => f.id === id)) set(selectItem(id))

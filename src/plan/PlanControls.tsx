@@ -1,4 +1,5 @@
 import { useLayoutEffect, useRef, useState, type MouseEvent } from 'react'
+import { flushSync } from 'react-dom'
 import { useKeyboardInset } from '../keyboardInset'
 import { usePhoneLayout } from '../useMediaQuery'
 import type { Size } from '../useViewportSize'
@@ -45,7 +46,6 @@ export function PlanControls({
   const hasPlan = usePlanStore((s) => s.plan !== null)
   const pendingPlan = usePlanStore((s) => s.pendingPlan)
   const measuring = usePlanStore((s) => s.tape !== null)
-  const selected = usePlanStore((s) => s.selectedId !== null)
   const nextRedo = usePlanStore((s) => s.nextRedo?.label)
   const [error, setError] = useState<string | null>(null)
   const [confirmingNew, setConfirmingNew] = useState(false)
@@ -80,14 +80,21 @@ export function PlanControls({
   // cover the foot of the canvas: fits leave them clear
   const bar = useRef<HTMLDivElement | null>(null)
   const expandedSheet = useRef<HTMLElement>(null)
+  // The selection last drawn, so the cover can tell one not drawn yet
+  const selectedId = usePlanStore((s) => s.selectedId)
+  const drawnSelection = useRef(selectedId)
+  useLayoutEffect(() => {
+    drawnSelection.current = selectedId
+  }, [selectedId])
   useLayoutEffect(() => {
     if (!phone) return
-    planStore
-      .getState()
-      .setCanvasCover(
-        () =>
-          (expandedSheet.current ?? bar.current)?.getBoundingClientRect().top,
-      )
+    planStore.getState().setCanvasCover(() => {
+      // An item just selected (a new one, say) opens its sheet: draw it
+      // first, so the sheet is measured too
+      if (planStore.getState().selectedId !== drawnSelection.current)
+        flushSync(() => {})
+      return (expandedSheet.current ?? bar.current)?.getBoundingClientRect().top
+    })
     return () => planStore.getState().setCanvasCover(null)
   }, [phone])
   const fitToScreen = () => planStore.getState().fitToScreen(viewport)
@@ -120,7 +127,7 @@ export function PlanControls({
     hasPlan &&
     (measuring ? (
       <MeasuringTapeStatus />
-    ) : selected ? (
+    ) : selectedId !== null ? (
       <FurnitureStatus />
     ) : (
       <CalibrationStatus />
@@ -254,7 +261,7 @@ export function PlanControls({
                       label: 'Delete item',
                       onSelect: () =>
                         planStore.getState().deleteSelectedFurniture(),
-                      disabled: !selected,
+                      disabled: selectedId === null,
                     },
                   ]}
                 />

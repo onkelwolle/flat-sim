@@ -123,6 +123,38 @@ test.describe('once calibrated', () => {
     await expectFurnitureAt(page, 640, 360, false)
   })
 
+  test('the form stays open, values and all, across the phone breakpoint', async ({
+    page,
+  }) => {
+    await addButton(page).click()
+    const form = formDialog(page)
+    await form.getByLabel('Name').fill('Desk')
+    await form.getByLabel('Width (cm)').fill('120')
+    await form.getByLabel('Depth (cm)').fill('60')
+
+    const expectFormAsTyped = async () => {
+      await expect(form).toBeVisible()
+      await expect(form.getByLabel('Name')).toHaveValue('Desk')
+      await expect(form.getByLabel('Width (cm)')).toHaveValue('120')
+      await expect(form.getByLabel('Depth (cm)')).toHaveValue('60')
+    }
+
+    // Narrowed to a phone, then widened again, each time once the tools have
+    // moved
+    await page.setViewportSize({ width: 390, height: 720 })
+    await expect(page.locator('.bottom-bar')).toBeAttached()
+    await expectFormAsTyped()
+    await page.setViewportSize({ width: 1280, height: 720 })
+    await expect(page.locator('.toolbar')).toBeAttached()
+    await expectFormAsTyped()
+
+    // And it still adds the item, centred in the view
+    await form.getByRole('button', { name: 'Add', exact: true }).click()
+    await expect(form).toBeHidden()
+    await canvasDrawn(page)
+    await expectFurnitureAt(page, 640, 360, true)
+  })
+
   test('the form opens with the last values added, selected for typing over', async ({
     page,
   }) => {

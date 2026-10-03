@@ -37,6 +37,7 @@ function App() {
   const selection = useFurnitureSelection()
   useUndoShortcuts(viewport)
   const [overItem, setOverItem] = useState(false)
+  const [overLineEnd, setOverLineEnd] = useState(false)
 
   const pointerOnPlan = () =>
     stageRef.current?.getRelativePointerPosition() ?? null
@@ -101,7 +102,7 @@ function App() {
             navigation.style.cursor ??
             (calibrating || measuring
               ? 'crosshair'
-              : overItem
+              : overItem || overLineEnd
                 ? 'move'
                 : undefined),
         }}
@@ -119,7 +120,14 @@ function App() {
         {plan && (
           <FurnitureLayer onHoverChange={setOverItem} interrupted={pinching} />
         )}
-        {plan && <CalibrationLayer pointer={pointer} />}
+        {plan && (
+          <CalibrationLayer
+            pointer={pointer}
+            adjustable
+            onHoverChange={setOverLineEnd}
+            interrupted={pinching}
+          />
+        )}
         {plan && <MeasuringTapeLayer />}
       </Stage>
       {placing.press && (

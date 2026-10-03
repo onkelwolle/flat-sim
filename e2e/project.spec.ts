@@ -72,6 +72,35 @@ const savedItems = (page: Page) =>
       }),
   )
 
+/** The saved project's scale, in plan px per metre; null if it has none. */
+const savedPixelsPerMetre = (page: Page) =>
+  page.evaluate(
+    () =>
+      new Promise<number | null>((resolve, reject) => {
+        const open = indexedDB.open('flat-sim')
+        open.onerror = () => reject(open.error)
+        open.onsuccess = () => {
+          const db = open.result
+          const get = db
+            .transaction('projects')
+            .objectStore('projects')
+            .get('current')
+          get.onsuccess = () => {
+            db.close()
+            const record = get.result as
+              | {
+                  project: {
+                    calibration: { scale: { pixelsPerMetre: number } } | null
+                  }
+                }
+              | undefined
+            resolve(record?.project.calibration?.scale.pixelsPerMetre ?? null)
+          }
+          get.onerror = () => reject(get.error)
+        }
+      }),
+  )
+
 /** Wait until autosave has stored `count` items (null: nothing saved). */
 const expectSaved = (page: Page, count: number | null) =>
   expect.poll(() => savedItems(page)).toBe(count)
@@ -110,6 +139,23 @@ test.describe('with storage', () => {
 
     await expectWidePlanFitted(page)
     await expectFurnitureAt(page, 640, 360, false)
+  })
+
+  test('keeps an adjusted calibration line on reload', async ({ page }) => {
+    // Unselect the sofa, then drag the line's end from plan (300, 100) to
+    // (200, 100): the 4 m are now 100 plan px
+    await page.keyboard.press('Escape')
+    await page.mouse.move(960, 360)
+    await page.mouse.down()
+    await page.mouse.move(640, 360, { steps: 5 })
+    await page.mouse.up()
+    await expect(status(page)).toHaveText('Scale: 1 m = 25 plan px')
+    await expect.poll(() => savedPixelsPerMetre(page)).toBe(25)
+
+    await page.reload()
+
+    await expectWidePlanFitted(page)
+    await expect(status(page)).toHaveText('Scale: 1 m = 25 plan px')
   })
 
   test('a new project clears everything once confirmed, also after reload', async ({

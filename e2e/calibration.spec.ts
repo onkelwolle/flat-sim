@@ -1,6 +1,8 @@
 import { expect, test, type Page } from '@playwright/test'
 import {
   CALIBRATION_LAYER,
+  canvasDrawn,
+  expectFurnitureAt,
   expectLabelCentredAt,
   expectWidePlanFitted,
   pickFile,
@@ -172,6 +174,110 @@ test('the length dialog keeps what is typed across the phone breakpoint', async 
   await dialog.getByRole('button', { name: 'Set scale' }).click()
   await expect(dialog).toBeHidden()
   await expect(status(page)).toHaveText('Scale: 1 m = 50 plan px')
+})
+
+/** Drag with the mouse from one screen point to another. */
+const drag = async (
+  page: Page,
+  from: [number, number],
+  to: [number, number],
+) => {
+  await page.mouse.move(...from)
+  await page.mouse.down()
+  await page.mouse.move(...to, { steps: 5 })
+  await page.mouse.up()
+}
+
+test.describe('adjusting the calibration line', () => {
+  /** A 2 m × 1 m sofa in the view's centre, unselected. */
+  const addSofa = async (page: Page) => {
+    await page.getByRole('button', { name: 'Add furniture' }).click()
+    const form = page.getByRole('dialog', { name: 'Add furniture' })
+    await form.getByLabel('Name').fill('Sofa')
+    await form.getByLabel('Width (cm)').fill('200')
+    await form.getByLabel('Depth (cm)').fill('100')
+    await form.getByRole('button', { name: 'Add', exact: true }).click()
+    await expect(form).toBeHidden()
+    await page.keyboard.press('Escape')
+  }
+
+  test.beforeEach(async ({ page }) => {
+    // Plan (100, 100) to (300, 100), 4 m: 50 plan px per metre
+    await calibrate(page, [320, 360], [960, 360], '4', 'm')
+    // 100 × 50 plan px: screen x 480–800, y 280–440
+    await addSofa(page)
+    await expectFurnitureAt(page, 500, 360)
+    await canvasDrawn(page)
+  })
+
+  test('dragging an end keeps the real length and rescales the furniture', async ({
+    page,
+  }) => {
+    // The end to plan (200, 100): 100 plan px are now the 4 m
+    await drag(page, [960, 360], [640, 360])
+
+    await expect(status(page)).toHaveText('Scale: 1 m = 25 plan px')
+    // The sofa is half as big on the plan: screen x 560–720
+    await expectFurnitureAt(page, 500, 360, false)
+    await expectFurnitureAt(page, 580, 360)
+    // The label stays on the line's middle, now plan (150, 100)
+    await expectLabelCentredAt(page, CALIBRATION_LAYER, 480, 360)
+  })
+
+  test('the start can be dragged too, and either is grabbed a little off centre', async ({
+    page,
+  }) => {
+    // The start to plan (0, 100): 300 plan px are now the 4 m
+    await drag(page, [324, 357], [4, 357])
+
+    await expect(status(page)).toHaveText('Scale: 1 m = 75 plan px')
+  })
+
+  test('the adjustment is one step to undo', async ({ page }) => {
+    await drag(page, [960, 360], [640, 360])
+    const undo = page.getByRole('button', { name: 'Undo', exact: true })
+    await expect(undo).toHaveAttribute('title', 'Undo adjust calibration')
+
+    await undo.click()
+
+    await expect(status(page)).toHaveText('Scale: 1 m = 50 plan px')
+    await expectFurnitureAt(page, 500, 360)
+  })
+
+  test('dropping an end on the other changes nothing', async ({ page }) => {
+    await drag(page, [960, 360], [320, 360])
+
+    await expect(status(page)).toHaveText('Scale: 1 m = 50 plan px')
+    // The end is back where it was, and can be dragged from there
+    await drag(page, [960, 360], [640, 360])
+    await expect(status(page)).toHaveText('Scale: 1 m = 25 plan px')
+  })
+
+  test('only the ends take presses: the rest goes to what is under the line', async ({
+    page,
+  }) => {
+    // On the line past the sofa: a drag pans the plan 100 px down
+    await drag(page, [880, 360], [880, 460])
+    // On its label, over the sofa: a drag moves the sofa 100 px down
+    await drag(page, [640, 460], [640, 560])
+
+    await expect(status(page)).toHaveText(/^Sofa selected/)
+    await expectFurnitureAt(page, 640, 260, false)
+    await expectFurnitureAt(page, 640, 600)
+  })
+
+  test('while a tool is active, pressing an end belongs to the tool', async ({
+    page,
+  }) => {
+    await page.getByRole('button', { name: 'Measure' }).click()
+
+    await drag(page, [960, 360], [640, 360])
+
+    // Plan (300, 100) to (200, 100): 100 plan px = 2 m
+    await expect(status(page)).toHaveText(/^Distance: 2\.00 m\./)
+    await page.keyboard.press('Escape')
+    await expect(status(page)).toHaveText('Scale: 1 m = 50 plan px')
+  })
 })
 
 test('a new plan starts without a scale', async ({ page }) => {
